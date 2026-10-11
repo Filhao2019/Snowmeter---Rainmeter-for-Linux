@@ -1,0 +1,40 @@
+# Rust build output
+target/
+**/*.rs.bk
+*.pdb
+
+# Build outputs / packaging
+/dist/
+/build/
+*.deb
+*.rpm
+*.AppImage
+*.tar.gz
+
+# Editor / OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.orig
+
+# Large screenshots (keep only small ones; enforced with a pre-commit check too)
+notes/screenshots/*-full.png
+notes/screenshots/raw/
+
+# Never commit reference material
+rainmeter-src/
+sample-skins/
+Rainmeter/
+
+# Secrets / tokens
+.env
+.env.*
+*.pem
+*.key
+*.token
+secrets*
+credentials*
+.netrc
