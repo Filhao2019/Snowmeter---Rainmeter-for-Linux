@@ -1,0 +1,9 @@
+[package]
+name = "snowmeter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Snowmeter: run Rainmeter skins on Linux"
+
+[dependencies]
+snowmeter-core = { path = "../snowmeter-core" }
