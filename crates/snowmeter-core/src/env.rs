@@ -34,6 +34,9 @@ impl Environment {
     /// Layout under `dir`: `skins/`, `snowmeter.ini`, `program/`, `fonts/`.
     /// Nothing outside `dir` is referenced, so tests stay out of the real home.
     pub fn with_root(dir: &Path) -> Environment {
+        // Absolute, so `#@#`-style expanded paths are not re-joined to the skin dir.
+        let abs = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
+        let dir = abs.as_path();
         Environment {
             skins_dir: dir.join("skins"),
             settings_dir: dir.to_path_buf(),
