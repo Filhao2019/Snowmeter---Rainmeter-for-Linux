@@ -129,7 +129,15 @@ pub struct Skin {
     background: Option<cairo::ImageSurface>,
     messages: Vec<String>,
     loaded: bool,
+    /// Nesting depth of `execute_in` (bang re-entrancy guard).
+    pub(crate) reentry: u8,
+    pub(crate) reentry_logged: bool,
+    pub(crate) reentry_calls: u32,
 }
+
+/// Largest skin side we will draw (Cairo's hard limit is 32767; stay far below
+/// it so a bogus `SkinWidth`/`X` cannot allocate gigabytes).
+pub const MAX_SKIN_SIDE: i32 = 8192;
 
 pub(crate) fn normalize_config(s: &str) -> String {
     s.replace('/', "\\").trim_matches('\\').to_string()
@@ -191,6 +199,9 @@ impl Skin {
             background: None,
             messages: Vec::new(),
             loaded: false,
+            reentry: 0,
+            reentry_logged: false,
+            reentry_calls: 0,
         };
         let pre: Vec<String> = skin.parser.log_messages().iter().cloned().chain(skin.options.messages.clone()).collect();
         for m in pre {
@@ -374,8 +385,10 @@ impl Skin {
             }
         }
         let mut meter_actions = Vec::new();
+        let mut redraw = force;
         for i in 0..self.meters.len() {
             if self.step_meter(i, force) {
+                redraw = true;
                 let m = &self.meters[i].base;
                 if !m.on_update.trim().is_empty() {
                     meter_actions.push((m.on_update.clone(), m.name.clone()));
@@ -391,7 +404,10 @@ impl Skin {
         }
         let on_update = self.options.on_update.clone();
         self.execute(&on_update);
-        self.invalidate();
+        // Redraw only when a meter changed (bangs invalidate on their own).
+        if redraw {
+            self.invalidate();
+        }
     }
 
     /// Update one measure; returns its pending actions and name.
@@ -459,8 +475,8 @@ impl Skin {
         {
             let b = &m.base;
             let size = (
-                b.w_given.map(|v| v + b.pad_w()).unwrap_or(b.w as i32),
-                b.h_given.map(|v| v + b.pad_h()).unwrap_or(b.h as i32),
+                b.w_given.map(|v| v.saturating_add(b.pad_w())).unwrap_or(b.w as i32),
+                b.h_given.map(|v| v.saturating_add(b.pad_h())).unwrap_or(b.h as i32),
             );
             let inputs = MeterInputs { measures: guards.iter().map(|g| &**g).collect(), res, log: &log, size, pad: (b.pad_w(), b.pad_h()) };
             m.update(&inputs);
@@ -525,7 +541,8 @@ impl Skin {
         if o.skin_height > 0 {
             h = o.skin_height as f64;
         }
-        let new = (w as i32, h as i32);
+        let clamp = |v: f64| if v.is_nan() { 0 } else { v.clamp(0.0, MAX_SKIN_SIDE as f64) as i32 };
+        let new = (clamp(w), clamp(h));
         if new != self.size {
             self.size = new;
             if self.loaded {
@@ -558,19 +575,24 @@ impl Skin {
     }
 
     /// Render a fresh ARGB32 frame of `size()`.
-    pub fn render_to_surface(&self) -> cairo::ImageSurface {
+    /// Render the whole skin; `None` if Cairo cannot allocate the surface.
+    pub fn render_to_surface(&self) -> Option<cairo::ImageSurface> {
         let (w, h) = self.size;
-        let surf = cairo::ImageSurface::create(cairo::Format::ARgb32, w.max(1), h.max(1)).expect("surface");
+        let w = w.clamp(1, MAX_SKIN_SIDE);
+        let h = h.clamp(1, MAX_SKIN_SIDE);
+        let surf = cairo::ImageSurface::create(cairo::Format::ARgb32, w, h).ok()?;
         if let Ok(cr) = cairo::Context::new(&surf) {
             self.render(&cr);
         }
-        surf
+        Some(surf)
     }
 
-    pub(crate) fn with_frame<R>(&self, f: impl FnOnce(&mut cairo::ImageSurface) -> R) -> R {
+    pub(crate) fn with_frame<R>(&self, f: impl FnOnce(&mut cairo::ImageSurface) -> R) -> Option<R> {
         let mut slot = self.frame.borrow_mut();
-        let surf = slot.get_or_insert_with(|| self.render_to_surface());
-        f(surf)
+        if slot.is_none() {
+            *slot = self.render_to_surface();
+        }
+        slot.as_mut().map(f)
     }
 }
 
@@ -610,7 +632,7 @@ pub fn render_skin_png(env: &Environment, config: &str, file: Option<&str>, tick
     if w <= 0 || h <= 0 {
         return Err(format!("{config}: skin size is {w}x{h}, nothing to render"));
     }
-    let surf = skin.render_to_surface();
+    let surf = skin.render_to_surface().ok_or_else(|| format!("{config}: could not allocate a {w}x{h} surface"))?;
     let mut f = std::fs::File::create(out).map_err(|e| format!("{}: {e}", out.display()))?;
     surf.write_to_png(&mut f).map_err(|e| format!("PNG write failed: {e}"))
 }

@@ -31,7 +31,7 @@ impl Fx {
             s.tick();
         }
         let png = self._tmp.path().join(format!("{name}.png"));
-        s.render_to_surface().write_to_png(&mut std::fs::File::create(&png).unwrap()).unwrap();
+        s.render_to_surface().unwrap().write_to_png(&mut std::fs::File::create(&png).unwrap()).unwrap();
         (s, image::open(&png).unwrap().to_rgba8())
     }
 }

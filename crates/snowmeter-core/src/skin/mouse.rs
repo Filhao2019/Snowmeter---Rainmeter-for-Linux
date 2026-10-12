@@ -122,6 +122,7 @@ impl Skin {
                 })
                 .unwrap_or(0)
         })
+        .unwrap_or(0)
     }
 
     /// Bytes `0..=255` of alpha, row-major `width*height`, for building an
@@ -129,7 +130,7 @@ impl Skin {
     pub fn hit_mask(&self) -> (i32, i32, Vec<u8>) {
         let (w, h) = self.size();
         let mut out = vec![0u8; (w.max(0) * h.max(0)) as usize];
-        self.with_frame(|surf| {
+        let _ = self.with_frame(|surf| {
             let stride = surf.stride() as usize;
             if let Ok(d) = surf.data() {
                 for y in 0..h.max(0) as usize {

@@ -14,6 +14,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 const MAX_INCLUDE_DEPTH: usize = 100;
+/// Upper bound on files read for one skin (stops `@Include` fan-out).
+const MAX_INCLUDE_FILES: usize = 500;
 /// Sections that are not measures or meters.
 const SPECIAL_SECTIONS: [&str; 3] = ["RAINMETER", "VARIABLES", "METADATA"];
 /// Options that never come from a style.
@@ -70,6 +72,10 @@ pub struct ConfigParser {
     work_areas: Vec<Rect>,
     geometry: [f64; 4],
     messages: Vec<String>,
+    /// Canonical paths of the files being read (include cycle guard).
+    include_stack: Vec<PathBuf>,
+    /// Total files read so far (include fan-out guard).
+    files_read: usize,
 }
 
 fn up(s: &str) -> String {
@@ -109,6 +115,8 @@ impl ConfigParser {
             work_areas: env.work_areas.clone(),
             geometry: [0.0; 4],
             messages: Vec::new(),
+            include_stack: Vec::new(),
+            files_read: 0,
         };
         p.builtins = Self::build_builtins(env, id);
         p.read_ini_file(&id.ini_path, 0)?;
@@ -166,6 +174,26 @@ impl ConfigParser {
             self.messages.push(format!("Infinite include loop at {}", path.display()));
             return Ok(());
         }
+        let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if self.include_stack.contains(&canon) {
+            self.messages.push(format!("Infinite include loop at {}", path.display()));
+            return Ok(());
+        }
+        if self.files_read >= MAX_INCLUDE_FILES {
+            if self.files_read == MAX_INCLUDE_FILES {
+                self.files_read += 1;
+                self.messages.push(format!("Too many @Include files, skipping {}", path.display()));
+            }
+            return Ok(());
+        }
+        self.files_read += 1;
+        self.include_stack.push(canon);
+        let r = self.read_ini_inner(path, depth);
+        self.include_stack.pop();
+        r
+    }
+
+    fn read_ini_inner(&mut self, path: &Path, depth: usize) -> io::Result<()> {
         let ini = match IniFile::load(path) {
             Ok(ini) => ini,
             Err(e) if depth == 0 => return Err(e),
@@ -386,7 +414,12 @@ impl ConfigParser {
     /// `!SetOption`: overwrite (or add) a raw option value of an existing section.
     pub fn set_option(&mut self, section: &str, key: &str, value: &str) {
         if self.known_sections.contains(&up(section)) {
-            self.values.insert((up(section), up(key)), value.to_string());
+            if value.is_empty() {
+                // An empty value deletes the option (style / default applies).
+                self.values.remove(&(up(section), up(key)));
+            } else {
+                self.values.insert((up(section), up(key)), value.to_string());
+            }
         }
     }
 

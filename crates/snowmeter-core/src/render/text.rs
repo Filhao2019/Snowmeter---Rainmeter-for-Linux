@@ -92,9 +92,27 @@ pub struct TextSize {
     pub lines: usize,
 }
 
-fn scratch_cr() -> cairo::Context {
-    let s = cairo::ImageSurface::create(cairo::Format::ARgb32, 1, 1).expect("1x1 surface");
-    cairo::Context::new(&s).expect("cairo context")
+thread_local! {
+    static SCRATCH: Option<cairo::Context> = cairo::ImageSurface::create(cairo::Format::ARgb32, 1, 1)
+        .ok()
+        .and_then(|s| cairo::Context::new(&s).ok());
+    static METRICS: std::cell::RefCell<std::collections::HashMap<String, FontMetricsPx>> = Default::default();
+    static METRICS_COMPUTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Cached 1x1 context used for measuring (None only if Cairo is out of memory).
+fn scratch_cr() -> Option<cairo::Context> {
+    SCRATCH.with(|c| c.clone())
+}
+
+/// Forget cached metrics (fonts were registered, so they may differ now).
+pub fn clear_metrics_cache() {
+    METRICS.with(|c| c.borrow_mut().clear());
+}
+
+/// How many times `font_metrics` computed (not cache-hit) on this thread.
+pub fn font_metrics_computed() -> usize {
+    METRICS_COMPUTED.with(|c| c.get())
 }
 
 fn font_desc(fmt: &TextFormat) -> pango::FontDescription {
@@ -108,19 +126,30 @@ fn font_desc(fmt: &TextFormat) -> pango::FontDescription {
     fd
 }
 
-fn font_options(antialias: bool) -> cairo::FontOptions {
-    let mut fo = cairo::FontOptions::new().expect("font options");
+fn font_options(antialias: bool) -> Option<cairo::FontOptions> {
+    let mut fo = cairo::FontOptions::new().ok()?;
     fo.set_hint_metrics(cairo::HintMetrics::Off);
     fo.set_hint_style(cairo::HintStyle::None);
     fo.set_antialias(if antialias { cairo::Antialias::Gray } else { cairo::Antialias::None });
-    fo
+    Some(fo)
 }
 
 /// DirectWrite-style metrics approximated from Pango/FreeType.
 pub fn font_metrics(fmt: &TextFormat) -> FontMetricsPx {
-    let cr = scratch_cr();
-    let ctx = pangocairo::functions::create_context(&cr);
-    pangocairo::functions::context_set_font_options(&ctx, Some(&font_options(true)));
+    let key = format!("{}|{}|{}|{}", fmt.family, fmt.em.to_bits(), fmt.weight, fmt.italic);
+    if let Some(m) = METRICS.with(|c| c.borrow().get(&key).copied()) {
+        return m;
+    }
+    let Some(cr) = scratch_cr() else { return FontMetricsPx::default() };
+    METRICS_COMPUTED.with(|c| c.set(c.get() + 1));
+    let m = compute_font_metrics(&cr, fmt);
+    METRICS.with(|c| c.borrow_mut().insert(key, m));
+    m
+}
+
+fn compute_font_metrics(cr: &cairo::Context, fmt: &TextFormat) -> FontMetricsPx {
+    let ctx = pangocairo::functions::create_context(cr);
+    pangocairo::functions::context_set_font_options(&ctx, font_options(true).as_ref());
     ctx.set_round_glyph_positions(false);
     let m = ctx.metrics(Some(&font_desc(fmt)), None);
     let a = m.ascent() as f64 / PANGO_SCALE;
@@ -151,7 +180,7 @@ struct LayoutArgs<'a> {
 fn make_layout(cr: &cairo::Context, a: &LayoutArgs) -> pango::Layout {
     let layout = pangocairo::functions::create_layout(cr);
     let ctx = layout.context();
-    pangocairo::functions::context_set_font_options(&ctx, Some(&font_options(a.fmt.antialias)));
+    pangocairo::functions::context_set_font_options(&ctx, font_options(a.fmt.antialias).as_ref());
     ctx.set_round_glyph_positions(false);
     layout.set_font_description(Some(&font_desc(a.fmt)));
     layout.set_text(a.text);
@@ -259,7 +288,7 @@ pub fn measure(fmt: &TextFormat, text: &str, spans: &[Span], wrap: Option<Wrap>)
     if text.is_empty() {
         return TextSize::default();
     }
-    let cr = scratch_cr();
+    let Some(cr) = scratch_cr() else { return TextSize::default() };
     let m = font_metrics(fmt);
     let gdi = !fmt.accurate;
     let layout = make_layout(
@@ -394,4 +423,24 @@ pub fn draw(cr: &cairo::Context, d: &DrawSpec) {
     }
     pass(Pass::Main, d.color, 0.0, 0.0);
     let _ = cr.restore();
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn font_metrics_are_cached_per_format() {
+        let fmt = TextFormat { family: "Sans".into(), em: 13.0, weight: 400, italic: false, accurate: false, antialias: true };
+        let before = font_metrics_computed();
+        let a = font_metrics(&fmt);
+        for _ in 0..50 {
+            assert_eq!(font_metrics(&fmt), a);
+            measure(&fmt, "hello", &[], None);
+        }
+        assert_eq!(font_metrics_computed() - before, 1);
+        clear_metrics_cache();
+        font_metrics(&fmt);
+        assert_eq!(font_metrics_computed() - before, 2);
+    }
 }

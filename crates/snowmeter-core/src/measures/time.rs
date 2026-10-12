@@ -299,7 +299,7 @@ impl TimeMeasure {
     }
 
     fn naive(&self) -> NaiveDateTime {
-        let unix = self.time.floor() as i64 - WIN_EPOCH;
+        let unix = (self.time.floor() as i64).saturating_sub(WIN_EPOCH);
         DateTime::from_timestamp(unix, 0).map(|d| d.naive_utc()).unwrap_or_default()
     }
 

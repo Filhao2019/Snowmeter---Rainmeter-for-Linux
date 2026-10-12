@@ -6,12 +6,22 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+thread_local! {
+    static DIR_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Number of directory listings done by case-insensitive matching on this thread.
+pub fn dir_scans() -> usize {
+    DIR_SCANS.with(|c| c.get())
+}
+
 /// Find the entry of `dir` whose name equals `name` ignoring case.
 /// The verbatim spelling wins; ties are broken alphabetically.
 fn match_in_dir(dir: &Path, name: &str) -> Option<String> {
     if fs::symlink_metadata(dir.join(name)).is_ok() {
         return Some(name.to_string());
     }
+    DIR_SCANS.with(|c| c.set(c.get() + 1));
     let lower = name.to_lowercase();
     let mut hits: Vec<String> = fs::read_dir(dir)
         .ok()?

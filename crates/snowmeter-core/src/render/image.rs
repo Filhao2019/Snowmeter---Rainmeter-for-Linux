@@ -16,9 +16,17 @@ pub struct RawImage {
     pub rgba: Vec<u8>,
 }
 
+/// Largest image side and pixel count we ever allocate (skin-controlled sizes).
+const MAX_DIM: i32 = 16384;
+const MAX_PIXELS: usize = 1 << 25;
+
 impl RawImage {
     pub fn new(w: i32, h: i32) -> RawImage {
-        RawImage { w, h, rgba: vec![0; (w.max(0) * h.max(0) * 4) as usize] }
+        let (w, h) = (w.clamp(0, MAX_DIM), h.clamp(0, MAX_DIM));
+        let n = (w as usize).saturating_mul(h as usize).saturating_mul(4).min(MAX_PIXELS * 4);
+        // Never allocate more than the cap; callers index within `rgba.len()`.
+        let (w, h) = if (w as usize) * (h as usize) > MAX_PIXELS { (0, 0) } else { (w, h) };
+        RawImage { w, h, rgba: vec![0; if w == 0 || h == 0 { 0 } else { n }] }
     }
 }
 
@@ -242,14 +250,18 @@ fn crop(raw: &RawImage, c: [i32; 4], origin: i32) -> RawImage {
     if cw < 0 || ch < 0 {
         return raw.clone();
     }
-    let (sx, sy) = (ox + c[0], oy + c[1]);
+    if cw as i64 * ch as i64 > MAX_PIXELS as i64 || cw > MAX_DIM || ch > MAX_DIM {
+        log::warn!("ImageCrop {cw}x{ch} is too large, ignored");
+        return raw.clone();
+    }
+    let (sx, sy) = (ox as i64 + c[0] as i64, oy as i64 + c[1] as i64);
     let mut out = RawImage::new(cw, ch);
-    for y in 0..ch {
-        for x in 0..cw {
+    for y in 0..ch as i64 {
+        for x in 0..cw as i64 {
             let (px, py) = (sx + x, sy + y);
-            if px >= 0 && py >= 0 && px < raw.w && py < raw.h {
-                let s = ((py * raw.w + px) * 4) as usize;
-                let d = ((y * cw + x) * 4) as usize;
+            if px >= 0 && py >= 0 && px < raw.w as i64 && py < raw.h as i64 {
+                let s = ((py * raw.w as i64 + px) * 4) as usize;
+                let d = ((y * cw as i64 + x) * 4) as usize;
                 out.rgba[d..d + 4].copy_from_slice(&raw.rgba[s..s + 4]);
             }
         }

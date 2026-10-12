@@ -403,7 +403,8 @@ fn set_option_overrides_and_switches_style() {
     assert_eq!(l.p.read_string("M1", "FontColor", "", None), "5,5,5");
     l.p.set_option("M1", "MeterStyle", "S1");
     l.p.set_option("M1", "FontColor", "");
-    assert_eq!(l.p.read_string("M1", "FontColor", "x", None), "");
+    // An empty value deletes the option, so the style's value shows through.
+    assert_eq!(l.p.read_string("M1", "FontColor", "x", None), "1,1,1");
     l.p.set_option("M5", "MeterStyle", "S2");
     assert_eq!(l.p.read_string("M5", "FontColor", "", None), "2,2,2");
     l.p.set_option("M2", "Brand", "New");

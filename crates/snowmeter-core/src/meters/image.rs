@@ -18,6 +18,8 @@ pub struct ImageMeter {
     log: Vec<String>,
     /// What the current surface was built from.
     loaded_key: Option<String>,
+    /// `(authored path, resolved path)` of the last successful load.
+    resolved: Option<(String, PathBuf)>,
     surface: Option<cairo::ImageSurface>,
 }
 
@@ -66,6 +68,7 @@ impl MeterImpl for ImageMeter {
         let parts: Vec<i32> = margins.split(',').map(|p| crate::numparse::parse_i32_prefix(p.trim()).unwrap_or(0) as i32).collect();
         self.margins = if parts.len() >= 4 { [parts[0], parts[1], parts[2], parts[3]] } else { [0; 4] };
         self.loaded_key = None;
+        self.resolved = None;
         if opt.has("MaskImageName") {
             self.log.push(format!("[{}] MaskImageName is not supported", opt.section));
         }
@@ -80,9 +83,18 @@ impl MeterImpl for ImageMeter {
             return changed;
         }
         let full = with_default_extension(&format!("{}{}", self.image_path, name.trim()));
-        let path: PathBuf = crate::paths::resolve_path(&m.res.skin_dir, &full);
         let mut log = Vec::new();
-        let raw = m.res.images.load(&path, &mut log);
+        let cached = self.resolved.as_ref().filter(|(k, _)| *k == full).map(|(_, p)| p.clone());
+        let (path, raw) = match cached.and_then(|p| m.res.images.load(&p, &mut log).map(|r| (p, r))) {
+            Some((p, r)) => (p, Some(r)),
+            None => {
+                // First use or a miss: resolve against the disk (case-insensitive).
+                let path: PathBuf = crate::paths::resolve_path(&m.res.skin_dir, &full);
+                let raw = m.res.images.load(&path, &mut log);
+                self.resolved = raw.as_ref().map(|_| (full.clone(), path.clone()));
+                (path, raw)
+            }
+        };
         for l in log {
             m.log(l);
         }

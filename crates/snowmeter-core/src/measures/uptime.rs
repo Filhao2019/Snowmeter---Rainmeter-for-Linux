@@ -26,7 +26,7 @@ fn printf_int(spec: &str, arg: i64) -> Option<String> {
     let mut width = 0usize;
     while let Some(&c) = chars.peek() {
         if let Some(d) = c.to_digit(10) {
-            width = width * 10 + d as usize;
+            width = (width * 10 + d as usize).min(1000);
             chars.next();
         } else {
             break;
@@ -38,7 +38,7 @@ fn printf_int(spec: &str, arg: i64) -> Option<String> {
         let mut p = 0usize;
         while let Some(&c) = chars.peek() {
             if let Some(d) = c.to_digit(10) {
-                p = p * 10 + d as usize;
+                p = (p * 10 + d as usize).min(1000);
                 chars.next();
             } else {
                 break;

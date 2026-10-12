@@ -148,7 +148,7 @@ fn unescape_hex(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'\\' && i + 3 < b.len() && b[i + 1] == b'x' {
-            if let Ok(v) = u8::from_str_radix(&s[i + 2..i + 4], 16) {
+            if let Some(v) = s.get(i + 2..i + 4).and_then(|h| u8::from_str_radix(h, 16).ok()) {
                 bytes.push(v);
                 i += 4;
                 continue;

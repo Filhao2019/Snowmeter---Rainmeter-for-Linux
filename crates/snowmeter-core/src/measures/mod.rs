@@ -249,7 +249,7 @@ impl Measure {
         if !self.initialized {
             self.ifs.read_condition_options(opt);
         }
-        self.avg_size = opt.int("AverageSize", 0).max(0) as usize;
+        self.avg_size = opt.int("AverageSize", 0).clamp(0, 100_000) as usize;
 
         let regexp = opt.bool("RegExpSubstitute", false);
         let subs = opt.string("Substitute", "");

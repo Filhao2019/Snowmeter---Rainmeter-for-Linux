@@ -55,6 +55,11 @@ fn routable_argc(name: &str) -> Option<usize> {
     })
 }
 
+/// Maximum nesting of `execute_in` (`!Update` from `OnUpdateAction`, ...).
+const MAX_REENTRY: u8 = 8;
+/// Maximum `execute_in` calls caused by one outermost action (bounds fan-out).
+const MAX_NESTED_CALLS: u32 = 2000;
+
 impl Skin {
     /// Run an action string with no current section.
     pub fn execute(&mut self, actions: &str) {
@@ -66,8 +71,21 @@ impl Skin {
         if raw.trim().is_empty() {
             return;
         }
+        if self.reentry == 0 {
+            self.reentry_calls = 0;
+        }
+        self.reentry_calls += 1;
+        if self.reentry >= MAX_REENTRY || self.reentry_calls > MAX_NESTED_CALLS {
+            if !self.reentry_logged {
+                self.reentry_logged = true;
+                self.note("Action nesting is too deep; the action was ignored".to_string());
+            }
+            return;
+        }
+        self.reentry += 1;
         let acts = self.parse_expanded(raw, section);
         self.run_actions(acts, section.map(str::to_string), 0);
+        self.reentry -= 1;
     }
 
     fn parse_expanded(&self, raw: &str, section: Option<&str>) -> Vec<Action> {
@@ -210,8 +228,11 @@ impl Skin {
             let mname = meters[i].base.name.clone();
             let opt = OptionReader::new(parser, &mname, Some(&view));
             meters[i].read_options(&opt, options.default_update_divider);
+            meters[i].resize(&self.res);
             self.layout();
-            self.recompute_size();
+            if self.options.dynamic_window_size {
+                self.recompute_size();
+            }
         }
     }
 
@@ -224,7 +245,9 @@ impl Skin {
 
     fn after_layout_change(&mut self) {
         self.layout();
-        self.recompute_size();
+        if self.options.dynamic_window_size {
+            self.recompute_size();
+        }
         self.invalidate();
     }
 

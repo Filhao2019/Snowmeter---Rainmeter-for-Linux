@@ -190,11 +190,11 @@ impl MeterBase {
     }
 
     pub fn pad_w(&self) -> i32 {
-        self.padding[0] + self.padding[2]
+        self.padding[0].saturating_add(self.padding[2])
     }
 
     pub fn pad_h(&self) -> i32 {
-        self.padding[1] + self.padding[3]
+        self.padding[1].saturating_add(self.padding[3])
     }
 
     /// Width as seen by relative positioning and window sizing (0 when hidden).

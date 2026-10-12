@@ -158,11 +158,11 @@ impl Meter {
             return;
         }
         b.w = match b.w_given {
-            Some(w) => (w + b.pad_w()) as f64,
+            Some(w) => w.saturating_add(b.pad_w()) as f64,
             None => aw.trunc() + b.pad_w() as f64,
         };
         b.h = match b.h_given {
-            Some(h) => (h + b.pad_h()) as f64,
+            Some(h) => h.saturating_add(b.pad_h()) as f64,
             None => ah.trunc() + b.pad_h() as f64,
         };
     }

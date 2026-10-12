@@ -65,7 +65,7 @@ pub fn scaled_value(auto_scale: u8, decimals: i32, value: f64) -> String {
     let base = if auto_scale == AUTOSCALE_1000 || auto_scale == AUTOSCALE_1000K { 1000.0f64 } else { 1024.0 };
     let tbl = [base.powi(4), base.powi(3), base.powi(2), base];
     let k_only = auto_scale == AUTOSCALE_1024K || auto_scale == AUTOSCALE_1000K;
-    let d = decimals.max(0) as usize;
+    let d = decimals.clamp(0, 32) as usize;
     let (v, suffix) = if value >= tbl[0] {
         (value / tbl[0], " T")
     } else if value >= tbl[1] {
@@ -83,7 +83,7 @@ pub fn scaled_value(auto_scale: u8, decimals: i32, value: f64) -> String {
 /// `GetFormattedValue` without the Substitute step.
 pub fn format_value(value: f64, relative: f64, auto_scale: u8, scale: f64, decimals: i32, percentual: bool) -> String {
     if percentual {
-        let d = decimals.max(0) as usize;
+        let d = decimals.clamp(0, 32) as usize;
         format!("{:.d$}", 100.0 * relative)
     } else if auto_scale != AUTOSCALE_OFF {
         scaled_value(auto_scale, decimals, value)
@@ -94,7 +94,7 @@ pub fn format_value(value: f64, relative: f64, auto_scale: u8, scale: f64, decim
             remove_trailing_zero(&mut s);
             s
         } else {
-            let d = decimals.max(0) as usize;
+            let d = decimals.clamp(0, 32) as usize;
             format!("{v:.d$}")
         }
     }

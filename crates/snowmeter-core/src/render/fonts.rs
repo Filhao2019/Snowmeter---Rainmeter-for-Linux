@@ -69,6 +69,7 @@ pub fn register_font_files(files: &[PathBuf]) -> usize {
     }
     // Every thread has its own default font map, so refresh ours even when
     // nothing new was added.
+    super::text::clear_metrics_cache();
     let fm = pangocairo::FontMap::default();
     let ptr: *mut pango::ffi::PangoFontMap = fm.to_glib_none().0;
     // SAFETY: the default pangocairo font map on Linux is a PangoFcFontMap.

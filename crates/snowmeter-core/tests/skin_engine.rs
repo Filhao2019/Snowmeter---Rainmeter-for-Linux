@@ -228,7 +228,7 @@ fn show_hide_toggle_meter() {
     let fx = Fx::new();
     let mut s = fx.quick(
         "Vis",
-        "[A]\nMeter=String\nX=0\nW=30\nH=10\n[B]\nMeter=String\nX=100\nW=20\nH=10\nHidden=1\n",
+        "[Rainmeter]\nDynamicWindowSize=1\n[A]\nMeter=String\nX=0\nW=30\nH=10\n[B]\nMeter=String\nX=100\nW=20\nH=10\nHidden=1\n",
     );
     assert_eq!(s.size().0, 100, "hidden B counts with width 0");
     s.execute("[!ShowMeter B]");
@@ -411,7 +411,7 @@ fn image_meter_sizes_extension_and_options() {
     assert_eq!(wh("Padded"), (60.0, 40.0));
     assert_eq!(wh("Crop"), (50.0, 50.0));
     assert_eq!(wh("Rot"), (100.0, 200.0));
-    let img = s.render_to_surface();
+    let img = s.render_to_surface().unwrap();
     let png = fx._tmp.path().join("img.png");
     img.write_to_png(&mut std::fs::File::create(&png).unwrap()).unwrap();
     let img = image::open(&png).unwrap().to_rgba8();
@@ -442,7 +442,7 @@ fn image_follows_a_measure_value() {
     .unwrap();
     let mut s = fx.load("ImgM");
     let color = |s: &Skin| {
-        let surf = s.render_to_surface();
+        let surf = s.render_to_surface().unwrap();
         let p = fx._tmp.path().join("m.png");
         surf.write_to_png(&mut std::fs::File::create(&p).unwrap()).unwrap();
         image::open(&p).unwrap().to_rgba8().get_pixel(1, 1).0
@@ -496,7 +496,7 @@ fn string_text_draws_inside_its_box_and_alignment_moves_it() {
             &format!("[S]\nMeter=String\nText=Hi\nFontFace=Liberation Sans\nFontSize=12\nFontColor=255,255,255\nX=100\nW=100\nH=30\nStringAlign={align}\nSolidColor=0,0,0,255\n"),
         );
         let p = fx._tmp.path().join(format!("ink{align}.png"));
-        s.render_to_surface().write_to_png(&mut std::fs::File::create(&p).unwrap()).unwrap();
+        s.render_to_surface().unwrap().write_to_png(&mut std::fs::File::create(&p).unwrap()).unwrap();
         let img = image::open(&p).unwrap().to_rgba8();
         let mut min_x = u32::MAX;
         let mut max_x = 0;
@@ -594,7 +594,7 @@ fn skin_options_size_background_and_update() {
     // Height: max(top margin, meter bottom) + bottom margin.
     assert_eq!(s.size(), (300, 20 + 8));
     let p = fx._tmp.path().join("o.png");
-    s.render_to_surface().write_to_png(&mut std::fs::File::create(&p).unwrap()).unwrap();
+    s.render_to_surface().unwrap().write_to_png(&mut std::fs::File::create(&p).unwrap()).unwrap();
     let img = image::open(&p).unwrap().to_rgba8();
     assert_eq!(pixel(&img, 299, 0), [10, 20, 30, 255]);
 }
