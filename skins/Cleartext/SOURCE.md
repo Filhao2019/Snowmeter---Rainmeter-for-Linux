@@ -1,6 +1,6 @@
 # Source of this folder
 
-This folder is an upstream Rainmeter skin bundled with Snowmeter. It is not covered by Snowmeter's GPL; it keeps its own license.
+This folder is an upstream Rainmeter skin bundled with Snowmeter. It is not covered by Snowmeter's MIT license; it keeps its own license.
 
 - Skin: Cleartext
 - Author: redsaph

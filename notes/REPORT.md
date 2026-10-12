@@ -1,6 +1,6 @@
 # Snowmeter — final report
 
-Snowmeter is a GPL-2.0 Rust + GTK4 desktop widget app for Linux that loads **unmodified Windows Rainmeter skins** (skin folders, `.rmskin` packages, plain zips).
+Snowmeter is an MIT-licensed Rust + GTK4 desktop widget app for Linux that loads **unmodified Windows Rainmeter skins** (skin folders, `.rmskin` packages, plain zips).
 
 - **Private GitHub repo:** https://github.com/Filhao2019/snowmeter (visibility: PRIVATE; everything is pushed to `main`).
 - **Machine it was built and verified on:** Linux Mint 22.3, Cinnamon on **X11**, GTK 4.14.5, Rust 1.99 (installed with rustup into `~/.cargo`, no sudo).

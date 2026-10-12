@@ -24,7 +24,7 @@ for window managers that treat desktop windows badly: `below` = normal type +
 ## 2. Workspace layout
 
 ```
-snowmeter/                      (git repo, GPL-2.0)
+snowmeter/                      (git repo, MIT)
   Cargo.toml                    workspace
   crates/
     snowmeter-core/             library: everything that does not need GTK

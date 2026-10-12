@@ -5,7 +5,7 @@ members = ["crates/snowmeter-core", "crates/snowmeter"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "GPL-2.0-only"
+license = "MIT"
 
 # Keep debug/test builds small: line tables for our crates (enough for panic
 # backtraces), no debug info for dependencies. Full debug info for every test
