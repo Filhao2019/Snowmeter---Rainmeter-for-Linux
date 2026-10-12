@@ -137,3 +137,20 @@ fn histogram_draws_primary_bars() {
     let (_s, img) = fx.render("Hist", ini, 30);
     assert_eq!(px(&img, 19, 5), [255, 0, 0, 255]);
 }
+
+#[test]
+fn transformation_matrix_and_bevel() {
+    let fx = Fx::new();
+    // A 10x10 red square translated by (30, 0) via the matrix.
+    let (_s, img) = fx.render(
+        "Mx",
+        "[C]\nMeter=String\nX=0\nY=0\nW=60\nH=1\n[A]\nMeter=String\nX=10\nY=10\nW=10\nH=10\nSolidColor=255,0,0\nTransformationMatrix=1;0;0;1;30;0\n\
+         [B]\nMeter=String\nX=10\nY=40\nW=10\nH=10\nSolidColor=0,0,255\nBevelType=1\nBevelColor=0,255,0,255\n",
+        1,
+    );
+    assert_eq!(px(&img, 45, 15), [255, 0, 0, 255]);
+    assert_eq!(px(&img, 15, 15)[3], 0);
+    assert_eq!(px(&img, 15, 45), [0, 0, 255, 255]);
+    // Light bevel line two pixels outside the left edge.
+    assert_eq!(px(&img, 8, 45), [0, 255, 0, 255]);
+}

@@ -195,6 +195,9 @@ impl Meter {
             return;
         }
         let _ = cr.save();
+        if let Some(m) = self.base.matrix {
+            cr.transform(m);
+        }
         self.base.draw_background(cr);
         self.imp.draw(cr, &self.base, res);
         let _ = cr.restore();

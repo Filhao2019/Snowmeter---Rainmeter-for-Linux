@@ -88,6 +88,15 @@ pub struct MeterBase {
     pub dynamic_variables: bool,
     pub on_update: String,
     pub mouse: MouseActions,
+    /// `BevelType` 0 none, 1 up, 2 down.
+    pub bevel: u8,
+    pub bevel_color: Color,
+    pub bevel_color2: Color,
+    /// `TransformationMatrix` (identity when unset or invalid).
+    pub matrix: Option<cairo::Matrix>,
+    /// Stored for the front end; not shown yet.
+    pub tooltip_text: String,
+    pub tooltip_title: String,
 }
 
 /// Parse an `X`/`Y` option: optional trailing `r`/`R`, then `ParseInt`
@@ -151,6 +160,12 @@ impl MeterBase {
         self.solid_color2 = opt.color("SolidColor2", self.solid_color);
         self.gradient_angle = opt.float("GradientAngle", 0.0);
         self.antialias = opt.int("AntiAlias", 0) != 0;
+        self.bevel = opt.int("BevelType", 0).clamp(0, 2) as u8;
+        self.bevel_color = opt.color("BevelColor", Color { r: 255, g: 255, b: 255, a: 255 });
+        self.bevel_color2 = opt.color("BevelColor2", Color { r: 0, g: 0, b: 0, a: 255 });
+        self.matrix = parse_matrix(opt);
+        self.tooltip_text = opt.string("ToolTipText", "");
+        self.tooltip_title = opt.string("ToolTipTitle", "");
         self.measure_names = read_measure_names(opt);
         if self.type_name.eq_ignore_ascii_case("Histogram") && self.measure_names.len() == 1 {
             let legacy = opt.string("SecondaryMeasureName", "");
@@ -222,7 +237,51 @@ impl MeterBase {
     /// SolidColor / SolidColor2 / GradientAngle background over the full rect.
     pub fn draw_background(&self, cr: &cairo::Context) {
         paint_background(cr, self.rect_x, self.rect_y, self.w, self.h, self.solid_color, self.solid_color2, self.gradient_angle);
+        if self.bevel != 0 {
+            self.draw_bevel(cr);
+        }
     }
+
+    /// `DrawBevel`: eight 1px lines in a rect two pixels outside the meter.
+    fn draw_bevel(&self, cr: &cairo::Context) {
+        let (light, dark) = if self.bevel == 1 { (self.bevel_color, self.bevel_color2) } else { (self.bevel_color2, self.bevel_color) };
+        let o = if self.antialias { 0.0 } else { 0.5 };
+        let (l, t) = (self.rect_x - 2.0 + o, self.rect_y - 2.0 + o);
+        let (r, b) = (self.rect_x + self.w + 2.0, self.rect_y + self.h + 2.0);
+        let _ = cr.save();
+        self.apply_antialias(cr);
+        cr.set_line_width(1.0);
+        cr.set_line_cap(cairo::LineCap::Butt);
+        let lines = |c: Color, ls: [(f64, f64, f64, f64); 4]| {
+            cr.set_source_rgba(c.r as f64 / 255.0, c.g as f64 / 255.0, c.b as f64 / 255.0, c.a as f64 / 255.0);
+            for (x1, y1, x2, y2) in ls {
+                cr.move_to(x1, y1);
+                cr.line_to(x2, y2);
+                let _ = cr.stroke();
+            }
+        };
+        lines(light, [(l, t, l, b), (l, t, r, t), (l + 1.0, t, l + 1.0, b - 1.0), (l, t + 1.0, r - 1.0, t + 1.0)]);
+        lines(dark, [(l, b, r, b), (r, t, r, b), (l + 1.0, b - 1.0, r - 1.0, b - 1.0), (r - 1.0, t + 1.0, r - 1.0, b - 1.0)]);
+        let _ = cr.restore();
+    }
+}
+
+/// `TransformationMatrix=m11;m12;m21;m22;dx;dy`.
+fn parse_matrix(opt: &OptionReader) -> Option<cairo::Matrix> {
+    let text = opt.string("TransformationMatrix", "");
+    if text.trim().is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = text.split(';').collect();
+    if parts.len() != 6 {
+        return None;
+    }
+    let mut v = [0.0; 6];
+    for (i, p) in parts.iter().enumerate() {
+        let p = p.trim();
+        v[i] = if p.starts_with('(') { opt.parser.parse_formula(p, opt.sv)? } else { crate::numparse::parse_f64_prefix(p) };
+    }
+    Some(cairo::Matrix::new(v[0], v[1], v[2], v[3], v[4], v[5]))
 }
 
 fn read_measure_names(opt: &OptionReader) -> Vec<String> {
