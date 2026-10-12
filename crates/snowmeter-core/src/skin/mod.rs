@@ -275,8 +275,8 @@ impl Skin {
                     // Like Rainmeter, later sections may read `[Meter:W]` etc. while
                     // options are still being read, before any layout has run.
                     let b = &meter.base;
-                    let w = b.w_given.map_or(b.w, |v| f64::from(v.max(0) + b.padding[0] + b.padding[2]));
-                    let h = b.h_given.map_or(b.h, |v| f64::from(v.max(0) + b.padding[1] + b.padding[3]));
+                    let w = b.w_given.map_or(b.w, |v| f64::from(v.max(0)) + f64::from(b.padding[0]) + f64::from(b.padding[2]));
+                    let h = b.h_given.map_or(b.h, |v| f64::from(v.max(0)) + f64::from(b.padding[1]) + f64::from(b.padding[3]));
                     self.geom.push((name.clone(), [b.x_value as f64, b.y_value as f64, w, h]));
                     self.meters.push(meter);
                 }
