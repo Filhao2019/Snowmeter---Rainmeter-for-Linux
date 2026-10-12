@@ -97,12 +97,27 @@ offers Refresh all, Load skin, Get skins (gallery entries not installed yet; ins
 |---|---|---|---|
 | Measures | CPU, PhysicalMemory, SwapMemory, Memory, FreeDiskSpace, Uptime, Time, Calc, String, NetIn, NetOut, NetTotal, Registry (stub values), Loop | Plugin measures (see below) | Windows-only measures such as the Windows performance counter plugins |
 | Meters | String, Image, Bar, Bitmap, Button, Histogram, Line, Rotator, Roundline, Shape | Shape: gradient gamma is not applied, triangle line caps draw as square | none of the stock 4.5 types is missing |
-| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin), NowPlaying (MPRIS over D-Bus; every `PlayerName` maps to the best MPRIS player) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | HotKey, other third-party DLLs (shown as placeholders; the skin still loads) |
+| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin), NowPlaying (MPRIS over D-Bus; every `PlayerName` maps to the best MPRIS player), WebNowPlaying and SpotifyPlugin (MPRIS views; Spotify is preferred), Process, UsageMonitor, FolderInfo, FileView, ActionTimer, ConfigActive, RunCommand, Mouse, PingPlugin (`ping -c 1` on a worker thread), WifiStatus (`nmcli`/`iw`, `/proc/net/wireless` fallback), Win7AudioPlugin (`wpctl`, `pactl` fallback; volume is only changed by a skin's `!CommandMeasure`), QuotePlugin, GetActiveTitle (X11 `_NET_ACTIVE_WINDOW`; empty on Wayland-only sessions), ActiveNet (adapter, CPU topology and battery types from `/sys`/`/proc`), CoreTemp / SpeedFan / HWiNFO (see the hwmon mapping below) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | HotKey, iTunes, MSIAfterburner, other third-party DLLs (shown as placeholders; the skin still loads) |
 | Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue | window-position bangs depend on the compositor | bangs accepted and ignored: About, Manage, Debug, SkinMenu, TrayMenu, EditSkin, SetWallpaper, LoadLayout, Blur bangs, SnapEdges, `!KeepOnScreen` and similar Windows window features (keep-on-screen is available per skin in the right-click menu, and `Load=` layouts are applied when a `.rmskin` is installed) |
 | Variables | `#var#`, `[Measure]`, `[&Measure:]`, built-ins (`#@#`, `#CURRENTPATH#`, `#SCREENAREAWIDTH#` ...), `@Include`, formulas `( )` | | |
 | Skin windows | transparent windows, backgrounds with 9-slice margins, dragging, click-through, tooltips text, per-skin position saved | Z-order: Desktop/Below work on X11 and layer-shell; Normal everywhere | Windows blur, Aero effects, snap to edges |
 | Packages | `.rmskin` with footer, plain zip, folders, layouts, fonts | `Min version` checks (you may install anyway) | Windows plugin DLLs |
 | Drive letters | `C:` maps to `/`; Linux paths work in `Drive=` | other letters | |
+
+Hardware sensors come from `/sys/class/hwmon`, ordered CPU drivers first
+(`coretemp`, `k10temp`, `zenpower`), then chips by name:
+
+* `CoreTemp`: `Core N` per core on Intel; AMD drivers only export Tdie/Tctl,
+  which is reported for every `CoreTempIndex`. `Load` uses `/proc/stat` (busy
+  share since the previous update); clocks come from cpufreq or `/proc/cpuinfo`;
+  the bus speed is fixed at 100 MHz because Linux does not report it; `TjMax`
+  is the driver's `crit` or 100.
+* `SpeedFan`: `SpeedFanNumber` is the index in the flat list of all
+  `temp*_input` / `fan*_input` / `in*_input` files of that kind.
+* `HWiNFO`: `HWiNFOEntryId` bits 24-27 select temperature (1), voltage (2) or fan
+  (3), the low bits are the same flat index; the sensor id is ignored; Min, Max
+  and Avg are collected while the skin runs.
+* `MSIAfterburner` has no Linux data source and stays a placeholder.
 
 The authoritative lists are in `crates/snowmeter-core/src/compat.rs`,
 `measures/plugin.rs`, `meters/mod.rs` and `skin/actions.rs`.
@@ -139,8 +154,8 @@ you trust.
    but not shown everywhere).
 4. Missing window-manager features: snap to edges, keep-on-screen on Wayland,
    multi-monitor `@N` positioning checks.
-5. Plugins often used by popular suites: HotKey, FileView, Process, iTunes
-   replacements, Win7Audio, Quote.
+5. Plugins often used by popular suites: HotKey, iTunes replacements, an
+   MSIAfterburner data source, `GetActiveTitle` on Wayland.
 6. `ReadTextFile`/`WriteTextFile` helpers in the Lua API.
 7. Shape: gamma-correct gradients and triangle caps.
 8. Registry measure: map to a sensible Linux store or settings file.
