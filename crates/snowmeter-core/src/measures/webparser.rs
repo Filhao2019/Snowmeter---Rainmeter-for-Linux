@@ -128,7 +128,7 @@ impl WebParser {
             let name = format!("snowmeter-webparser-{}-{}", std::process::id(), self.section.to_ascii_lowercase());
             std::env::temp_dir().join(name)
         } else {
-            self.skin_dir.join("DownloadFile").join(&self.o.download_file)
+            confine(&self.skin_dir.join("DownloadFile"), &self.o.download_file)
         }
     }
 
@@ -395,13 +395,48 @@ pub fn decode_code_points(s: &str) -> String {
     out
 }
 
+/// Largest response (HTTP body or local file) a WebParser accepts.
+pub const MAX_RESPONSE: u64 = 16 << 20;
+
+/// Read a regular file of at most `MAX_RESPONSE` bytes (never blocks on FIFOs
+/// or devices such as `/dev/zero`).
+fn read_local_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let md = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    if !md.is_file() {
+        return Err("not a regular file".into());
+    }
+    let mut buf = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|f| f.take(MAX_RESPONSE + 1).read_to_end(&mut buf))
+        .map_err(|e| e.to_string())?;
+    if buf.len() as u64 > MAX_RESPONSE {
+        return Err(format!("file is larger than {} MiB", MAX_RESPONSE >> 20));
+    }
+    Ok(buf)
+}
+
+/// Join a skin-supplied relative file name under `base`, dropping any root,
+/// drive and `..` components so the result cannot leave `base`.
+fn confine(base: &std::path::Path, name: &str) -> PathBuf {
+    let mut out = base.to_path_buf();
+    for c in std::path::Path::new(&name.replace('\\', "/")).components() {
+        if let std::path::Component::Normal(p) = c {
+            out.push(p);
+        }
+    }
+    out
+}
+
 fn fetch(url: &str, headers: &[String], ua: &str) -> Result<Vec<u8>, String> {
     if let Some(p) = url.strip_prefix("file://") {
         let path = p.strip_prefix('/').map(|r| format!("/{r}")).unwrap_or_else(|| p.to_string());
-        return std::fs::read(&path).map_err(|e| format!("{path}: {e}"));
+        return read_local_file(std::path::Path::new(&path)).map_err(|e| format!("{path}: {e}"));
     }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(30)))
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_recv_response(Some(Duration::from_secs(20)))
         .user_agent(ua)
         .http_status_as_error(false)
         .build()
@@ -417,7 +452,7 @@ fn fetch(url: &str, headers: &[String], ua: &str) -> Result<Vec<u8>, String> {
     if status >= 400 {
         return Err(format!("HTTP status {status}"));
     }
-    resp.body_mut().read_to_vec().map_err(|e| e.to_string())
+    resp.body_mut().with_config().limit(MAX_RESPONSE).read_to_vec().map_err(|e| e.to_string())
 }
 
 impl MeasureImpl for WebParser {
@@ -516,6 +551,28 @@ impl MeasureImpl for WebParser {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn file_url_is_bounded_and_regular_only() {
+        assert!(super::fetch("file:///dev/zero", &[], "t").is_err());
+        let t = tempfile::tempdir().unwrap();
+        let big = t.path().join("big");
+        std::fs::File::create(&big).unwrap().set_len(super::MAX_RESPONSE + 1).unwrap();
+        assert!(super::fetch(&format!("file://{}", big.display()), &[], "t").is_err());
+        let ok = t.path().join("ok");
+        std::fs::write(&ok, "hi").unwrap();
+        assert_eq!(super::fetch(&format!("file://{}", ok.display()), &[], "t").unwrap(), b"hi");
+    }
+
+    #[test]
+    fn download_file_cannot_escape_its_folder() {
+        let base = std::path::Path::new("/skin/DownloadFile");
+        for n in ["../x", "/etc/passwd", "a/../../x", "..\\..\\x"] {
+            let p = super::confine(base, n);
+            assert!(p.starts_with(base) && !p.components().any(|c| c.as_os_str() == ".."), "{n} -> {p:?}");
+        }
+        assert_eq!(super::confine(base, "sub/f.txt"), base.join("sub/f.txt"));
+    }
+
     use super::*;
 
     #[test]

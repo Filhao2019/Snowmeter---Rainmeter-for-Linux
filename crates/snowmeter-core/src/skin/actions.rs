@@ -193,6 +193,10 @@ impl Skin {
         if expanded != text && (expanded.trim_start().starts_with(['[', '!'])) {
             let acts = parse_actions(&expanded);
             self.run_actions(acts, section.map(str::to_string), depth + 1);
+        } else if expanded == crate::measures::recycle::EMPTY_CONFIRM {
+            self.push_request(AppRequest::EmptyTrash { confirm: true });
+        } else if expanded == crate::measures::recycle::EMPTY_SILENT {
+            self.push_request(AppRequest::EmptyTrash { confirm: false });
         } else if !expanded.trim().is_empty() {
             self.push_request(AppRequest::OpenOrRun(expanded));
         }

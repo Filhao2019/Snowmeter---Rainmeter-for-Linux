@@ -333,3 +333,21 @@ mod final_review_limits {
         assert!(t.elapsed().as_secs() < 5);
     }
 }
+
+#[test]
+fn empty_bin_requests_confirmation_and_silent_does_not() {
+    use snowmeter_core::env::Environment;
+    use snowmeter_core::skin::{AppRequest, Skin};
+    let tmp = tempfile::tempdir().unwrap();
+    let env = Environment::with_root(tmp.path());
+    let dir = env.skins_dir.join("S");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("Main.ini"), "[R]\nMeasure=Plugin\nPlugin=RecycleManager\n[T]\nMeter=String\nText=x\n").unwrap();
+    let mut s = Skin::load(&env, "S", "Main.ini").unwrap();
+    s.tick();
+    s.take_requests();
+    s.execute("[!CommandMeasure R \"EmptyBin\"]");
+    assert!(matches!(s.take_requests().as_slice(), [AppRequest::EmptyTrash { confirm: true }]));
+    s.execute("[!CommandMeasure R \"EmptyBinSilent\"]");
+    assert!(matches!(s.take_requests().as_slice(), [AppRequest::EmptyTrash { confirm: false }]));
+}

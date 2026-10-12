@@ -36,8 +36,9 @@ To use them, copy `skins/Snowmeter` into `~/.config/snowmeter/skins/`, then
 sudo apt install libgtk-4-dev libcairo2-dev libpango1.0-dev libfontconfig-dev build-essential
 ```
 
-- Optional, for Wayland compositors with layer-shell: `libgtk4-layer-shell-dev`
-  (build with `--features wayland-layer-shell`)
+- Optional: the `wayland-layer-shell` cargo feature is a placeholder. It does
+  not link `gtk4-layer-shell` yet and only logs a message, so it changes nothing
+  today (see Desktop environments).
 
 ## Build and install
 
@@ -94,8 +95,8 @@ offers Refresh all, Load skin and Quit.
 |---|---|---|---|
 | Measures | CPU, PhysicalMemory, SwapMemory, Memory, FreeDiskSpace, Uptime, Time, Calc, String, NetIn, NetOut, NetTotal, Registry (stub values), Loop | Plugin measures (see below) | Windows-only measures such as the Windows performance counter plugins |
 | Meters | String, Image, Bar, Bitmap, Button, Histogram, Line, Rotator, Roundline, Shape | Shape: gradient gamma is not applied, triangle line caps draw as square | none of the stock 4.5 types is missing |
-| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash), PowerPlugin | SysInfo (some idle and logon time values return 0), Script (no file read/write API, inline `[Script:Func()]` has no skin access) | InputText, NowPlaying, HotKey, other third-party DLLs (shown as placeholders; the skin still loads) |
-| Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue | window-position bangs depend on the compositor | accepted and ignored: About, Manage, Debug, SkinMenu, TrayMenu, EditSkin, SetWallpaper, LoadLayout, Blur bangs, SnapEdges, KeepOnScreen and similar Windows window features |
+| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | NowPlaying, HotKey, other third-party DLLs (shown as placeholders; the skin still loads) |
+| Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue | window-position bangs depend on the compositor | bangs accepted and ignored: About, Manage, Debug, SkinMenu, TrayMenu, EditSkin, SetWallpaper, LoadLayout, Blur bangs, SnapEdges, `!KeepOnScreen` and similar Windows window features (keep-on-screen is available per skin in the right-click menu, and `Load=` layouts are applied when a `.rmskin` is installed) |
 | Variables | `#var#`, `[Measure]`, `[&Measure:]`, built-ins (`#@#`, `#CURRENTPATH#`, `#SCREENAREAWIDTH#` ...), `@Include`, formulas `( )` | | |
 | Skin windows | transparent windows, backgrounds with 9-slice margins, dragging, click-through, tooltips text, per-skin position saved | Z-order: Desktop/Below work on X11 and layer-shell; Normal everywhere | Windows blur, Aero effects, snap to edges |
 | Packages | `.rmskin` with footer, plain zip, folders, layouts, fonts | `Min version` checks (you may install anyway) | Windows plugin DLLs |
@@ -108,17 +109,28 @@ The authoritative lists are in `crates/snowmeter-core/src/compat.rs`,
 
 - **X11** (Cinnamon, MATE, Xfce, KDE, GNOME on Xorg): full support, including
   below-all-windows widgets, positioning and click-through.
-- **Wayland on wlroots compositors (Sway, Hyprland ...) and KDE**: build with
-  `--features wayland-layer-shell` and install `libgtk4-layer-shell-dev` so widgets
-  can sit on the background layer.
+- **Wayland on wlroots compositors (Sway, Hyprland ...) and KDE**: layer-shell
+  background windows are not implemented yet (the `wayland-layer-shell` feature
+  only logs a message), so widgets are ordinary windows there. Use
+  `GDK_BACKEND=x11 snowmeter` to run under XWayland instead.
 - **GNOME Wayland**: the compositor does not let apps place windows or set a
   background layer, so widgets cannot be positioned or kept below other windows.
   Run with `GDK_BACKEND=x11 snowmeter` to use XWayland, which works.
 
+## Safety limits
+
+Skins and packages are untrusted input. Lua calls are aborted after 200 ms
+(1 s for the initial chunk) and Lua states are capped at 64 MB; Line, Histogram
+and Bitmap counts and sizes are clamped; WebParser responses are capped at
+16 MB with connect and read timeouts; `DownloadFile` stays inside the skin's
+`DownloadFile` folder; the control socket is private to your user. A skin can
+still run programs through `Run` bangs, as in Rainmeter, so only click skins
+you trust.
+
 ## Contributing: prioritized TODO
 
-1. InputText plugin (native entry overlaid on the skin). `illustro\Google` and
-   many search-box skins need it.
+1. Wayland layer-shell support (link `gtk4-layer-shell` and wire the
+   `wayland-layer-shell` feature) so widgets can sit on the background layer.
 2. NowPlaying plugin via MPRIS (D-Bus). The most common third-party plugin in
    music skins.
 3. Meter ToolTip display and `Container` support polish (tooltip text is parsed
@@ -127,8 +139,7 @@ The authoritative lists are in `crates/snowmeter-core/src/compat.rs`,
    multi-monitor `@N` positioning checks.
 5. Plugins often used by popular suites: HotKey, FileView, Process, iTunes
    replacements, AudioLevel (PipeWire), Win7Audio, Quote.
-6. `ReadTextFile`/`WriteTextFile` in the Lua API and skin access from inline
-   `[Script:Func()]` calls.
+6. `ReadTextFile`/`WriteTextFile` helpers in the Lua API.
 7. Shape: gamma-correct gradients and triangle caps.
 8. Registry measure: map to a sensible Linux store or settings file.
 9. A skin manager window (list, load, unload, settings) beyond the tray menu.

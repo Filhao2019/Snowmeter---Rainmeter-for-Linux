@@ -109,6 +109,11 @@ fn spawn_detached(program: &str, args: &[String]) {
     }
 }
 
+/// Permanently empty the XDG trash (no confirmation; callers ask first).
+fn empty_trash() {
+    spawn_detached("gio", &["trash".to_string(), "--empty".to_string()]);
+}
+
 pub fn open_or_run(s: &str) {
     match classify_command(s) {
         Launch::Open(t) => spawn_detached("xdg-open", &[t]),
@@ -291,6 +296,25 @@ impl Inner {
                 }
             }
             AppRequest::OpenOrRun(s) => open_or_run(&s),
+            AppRequest::EmptyTrash { confirm } => {
+                if confirm {
+                    let dialog = gtk4::AlertDialog::builder()
+                        .message("Empty the Trash?")
+                        .detail("All items in the Trash will be permanently deleted.")
+                        .buttons(["Cancel", "Empty Trash"])
+                        .cancel_button(0)
+                        .default_button(0)
+                        .modal(true)
+                        .build();
+                    dialog.choose(None::<&gtk4::Window>, None::<&gio::Cancellable>, |res| {
+                        if matches!(res, Ok(1)) {
+                            empty_trash();
+                        }
+                    });
+                } else {
+                    empty_trash();
+                }
+            }
             AppRequest::Resize => {}
             AppRequest::Quit => self.gapp.quit(),
             AppRequest::InputText { config, spec } => {

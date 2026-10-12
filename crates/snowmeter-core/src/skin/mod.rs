@@ -45,6 +45,8 @@ pub enum AppRequest {
     Hide { config: String },
     ToggleVisible { config: String },
     Quit,
+    /// Empty the trash; `confirm` = ask the user first.
+    EmptyTrash { confirm: bool },
     /// Show a text entry over the skin (native InputText plugin).
     InputText { config: String, spec: crate::measures::inputtext::InputTextSpec },
 }

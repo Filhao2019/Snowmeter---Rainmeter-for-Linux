@@ -35,6 +35,10 @@ pub fn trash_stats(files: &Path) -> (u64, u64) {
     (count, size)
 }
 
+/// Internal action strings turned into `AppRequest::EmptyTrash` by the skin.
+pub const EMPTY_CONFIRM: &str = "snowmeter:empty-trash";
+pub const EMPTY_SILENT: &str = "snowmeter:empty-trash-silent";
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Count,
@@ -88,13 +92,10 @@ impl MeasureImpl for RecycleMeasure {
     fn command(&mut self, args: &str) {
         match args.trim().to_ascii_lowercase().as_str() {
             "openbin" => self.actions.push("trash:///".into()),
-            "emptybin" | "emptybinsilent" => {
-                // Runs `gio trash --empty`; the confirmation of `EmptyBin` is
-                // the front end's business.
-                if let Err(e) = std::process::Command::new("gio").args(["trash", "--empty"]).spawn() {
-                    self.log.push(format!("RecycleManager: cannot run gio: {e}"));
-                }
-            }
+            // The front end asks for confirmation (`EmptyBin`) or not
+            // (`EmptyBinSilent`) and then empties the trash.
+            "emptybin" => self.actions.push(EMPTY_CONFIRM.into()),
+            "emptybinsilent" => self.actions.push(EMPTY_SILENT.into()),
             other => self.log.push(format!("RecycleManager: unknown command '{other}'")),
         }
     }
@@ -131,6 +132,15 @@ mod tests {
         assert!(m.take_log().is_empty());
         m.command("Nonsense");
         assert_eq!(m.take_log().len(), 1);
+    }
+
+    #[test]
+    fn empty_bin_asks_first_and_silent_does_not() {
+        let mut m = RecycleMeasure::with_dir(PathBuf::from("/nonexistent"));
+        m.command("EmptyBin");
+        assert_eq!(m.take_actions(), vec![EMPTY_CONFIRM.to_string()]);
+        m.command("EmptyBinSilent");
+        assert_eq!(m.take_actions(), vec![EMPTY_SILENT.to_string()]);
     }
 
     #[test]
