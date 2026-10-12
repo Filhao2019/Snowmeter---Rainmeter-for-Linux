@@ -151,7 +151,7 @@ impl Skin {
             if m.base.hidden || m.base.mouse.get(kind).is_none() {
                 continue;
             }
-            if m.base.hit_test(x, y) {
+            if m.hit_test(x, y) {
                 return Some(Target::Meter(i));
             }
         }
@@ -250,7 +250,7 @@ impl Skin {
                 continue;
             }
             let m = &self.meters[i];
-            let still = pos.map(|(x, y)| !m.base.hidden && m.base.hit_test(x, y)).unwrap_or(false);
+            let still = pos.map(|(x, y)| !m.base.hidden && m.hit_test(x, y)).unwrap_or(false);
             if !still {
                 self.over[i] = false;
                 if m.base.mouse.get(ActionKind::Leave).is_some() {
@@ -274,7 +274,7 @@ impl Skin {
         }
         for i in (0..self.meters.len()).rev() {
             let m = &self.meters[i];
-            if self.over[i] || m.base.hidden || !m.base.mouse.has_over_or_leave() || !m.base.hit_test(x, y) {
+            if self.over[i] || m.base.hidden || !m.base.mouse.has_over_or_leave() || !m.hit_test(x, y) {
                 continue;
             }
             self.over[i] = true;

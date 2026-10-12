@@ -12,6 +12,7 @@ pub mod imgslot;
 pub mod line;
 pub mod rotator;
 pub mod roundline;
+pub mod shape;
 pub mod string;
 
 use crate::measures::Measure;
@@ -65,6 +66,10 @@ pub trait MeterImpl {
     fn text(&self) -> Option<&str> {
         None
     }
+    /// Hit test in skin coordinates (default: the padded rectangle).
+    fn hit_test(&self, base: &MeterBase, x: f64, y: f64) -> bool {
+        base.hit_test(x, y)
+    }
     /// True for Button meters, which keep pointer state.
     fn is_button(&self) -> bool {
         false
@@ -93,7 +98,7 @@ impl MeterImpl for Unsupported {
     fn draw(&self, _cr: &cairo::Context, _base: &MeterBase, _res: &Resources) {}
 }
 
-const DEFERRED_TYPES: [&str; 1] = ["SHAPE"];
+const DEFERRED_TYPES: [&str; 0] = [];
 
 /// Factory. `Err` carries the reason a section is skipped.
 pub fn create_impl(type_name: &str) -> Result<Box<dyn MeterImpl>, String> {
@@ -107,6 +112,7 @@ pub fn create_impl(type_name: &str) -> Result<Box<dyn MeterImpl>, String> {
         "HISTOGRAM" => Ok(Box::new(histogram::HistogramMeter::default())),
         "LINE" => Ok(Box::new(line::LineMeter::default())),
         "ROTATOR" => Ok(Box::new(rotator::RotatorMeter::default())),
+        "SHAPE" => Ok(Box::new(shape::ShapeMeter::default())),
         "ROUNDLINE" => Ok(Box::new(roundline::RoundLineMeter::default())),
         t if DEFERRED_TYPES.contains(&t) => Ok(Box::new(Unsupported)),
         _ => Err(format!("Meter={type_name} is not valid")),
@@ -178,6 +184,10 @@ impl Meter {
                 VAlign::Center => -((h / 2) as f64),
                 VAlign::Bottom => -(h as f64),
             };
+    }
+
+    pub fn hit_test(&self, x: f64, y: f64) -> bool {
+        self.imp.hit_test(&self.base, x, y)
     }
 
     pub fn draw(&self, cr: &cairo::Context, res: &Resources) {

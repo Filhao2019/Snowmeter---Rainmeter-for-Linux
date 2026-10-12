@@ -93,7 +93,7 @@ pub fn build_path(cr: &cairo::Context, g: &Geom, stroked_only: bool) {
         Geom::Path { start, segs, closed, .. } => {
             let mut cur = *start;
             let mut pen_down = false;
-            let mut begin = |cr: &cairo::Context, at: (f64, f64), pen_down: &mut bool| {
+            let begin = |cr: &cairo::Context, at: (f64, f64), pen_down: &mut bool| {
                 if !*pen_down {
                     cr.move_to(at.0, at.1);
                     *pen_down = true;
@@ -247,41 +247,64 @@ pub fn drawn_bounds(s: &ShapeDef) -> Option<Rect4> {
     let cr = scratch();
     cr.transform(m);
     build_path(&cr, &s.geom, false);
-    let fill = cr.fill_extents().ok().and_then(nonempty);
-    let mut total = fill;
+    // The path is stored in device space: reading it back with the identity
+    // matrix yields post-transform extents.
+    cr.set_matrix(Matrix::identity());
+    let mut total = cr.fill_extents().ok().and_then(nonempty);
     if s.stroke_width > 0.0 {
         let stroke = if s.custom_stroke {
-            let path = cr.copy_path().ok()?;
-            cr.set_matrix(Matrix::identity());
-            cr.new_path();
-            cr.append_path(&path);
             apply_stroke_style(&cr, s);
-            cr.stroke_extents().ok()
+            cr.stroke_extents().ok().and_then(nonempty)
         } else {
-            apply_stroke_style(&cr, s);
-            cr.stroke_extents().ok()
+            // The stroke is scaled by the transform: measure in shape space
+            // and map the box through `m`.
+            let cr2 = scratch();
+            build_path(&cr2, &s.geom, true);
+            apply_stroke_style(&cr2, s);
+            cr2.stroke_extents().ok().and_then(nonempty).map(|e| map_rect(&m, e))
         };
-        total = union_rect(total, stroke.and_then(nonempty));
+        total = union_rect(total, stroke);
     }
     total
 }
 
-/// Point-in-shape test (fill or stroke) in shape coordinates.
+fn map_rect(m: &Matrix, r: Rect4) -> Rect4 {
+    let pts = [(r.0, r.1), (r.2, r.1), (r.0, r.3), (r.2, r.3)].map(|(x, y)| m.transform_point(x, y));
+    let xs = pts.map(|p| p.0);
+    let ys = pts.map(|p| p.1);
+    (
+        xs.iter().cloned().fold(f64::INFINITY, f64::min),
+        ys.iter().cloned().fold(f64::INFINITY, f64::min),
+        xs.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+        ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+    )
+}
+
+/// Point-in-shape test (fill or stroke) in post-transform coordinates.
 pub fn contains_point(s: &ShapeDef, x: f64, y: f64) -> bool {
     let m = shape_matrix(s);
     let cr = scratch();
     cr.transform(m);
     build_path(&cr, &s.geom, false);
-    if cr.in_fill(x, y).unwrap_or(false) {
+    let (ux, uy) = x_in(&m, x, y);
+    if cr.in_fill(ux, uy).unwrap_or(false) {
         return true;
     }
     if s.stroke_width > 0.0 {
-        apply_stroke_style(&cr, s);
-        if cr.in_stroke(x, y).unwrap_or(false) {
-            return true;
+        if s.custom_stroke {
+            cr.set_matrix(Matrix::identity());
+            apply_stroke_style(&cr, s);
+            return cr.in_stroke(x, y).unwrap_or(false);
         }
+        apply_stroke_style(&cr, s);
+        return cr.in_stroke(ux, uy).unwrap_or(false);
     }
     false
+}
+
+/// Map a post-transform point back into shape space.
+fn x_in(m: &Matrix, x: f64, y: f64) -> (f64, f64) {
+    m.try_invert().map(|i| i.transform_point(x, y)).unwrap_or((x, y))
 }
 
 pub fn fill_rule(g: &Geom) -> cairo::FillRule {
@@ -296,6 +319,7 @@ pub fn flatten(s: &ShapeDef) -> Vec<Vec<[f64; 2]>> {
     let cr = scratch();
     cr.transform(shape_matrix(s));
     build_path(&cr, &s.geom, false);
+    cr.set_matrix(Matrix::identity());
     let mut out: Vec<Vec<[f64; 2]>> = Vec::new();
     let mut cur: Vec<[f64; 2]> = Vec::new();
     let Ok(path) = cr.copy_path_flat() else { return out };
