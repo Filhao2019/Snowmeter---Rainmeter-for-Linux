@@ -332,7 +332,7 @@ fn idle_seconds() -> f64 {
 }
 
 /// `(utc offset seconds, is_dst)` of the local zone now.
-fn local_offset() -> (i64, bool) {
+pub(crate) fn local_offset() -> (i64, bool) {
     // SAFETY: localtime_r writes into the zeroed tm we pass.
     unsafe {
         let now = libc::time(std::ptr::null_mut());

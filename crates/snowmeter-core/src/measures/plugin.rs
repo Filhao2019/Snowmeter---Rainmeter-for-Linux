@@ -51,6 +51,8 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("webnowplaying", || Box::new(super::nowplaying::web::WebNowPlayingMeasure::new())),
     ("process", || Box::new(super::process::ProcessMeasure::new())),
     ("usagemonitor", || Box::new(super::usagemonitor::UsageMonitor::new())),
+    ("folderinfo", || Box::new(super::folderinfo::FolderInfo::new())),
+    ("fileview", || Box::new(super::fileview::FileView::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),

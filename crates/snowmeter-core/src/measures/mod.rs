@@ -2,9 +2,12 @@
 //! implementations behind the `MeasureImpl` trait.
 
 pub mod base;
+pub mod bgshared;
 pub mod calc;
 pub mod cosmetic;
 pub mod disk;
+pub mod fileview;
+pub mod folderinfo;
 pub mod ifactions;
 pub mod inputtext;
 pub mod loop_;
