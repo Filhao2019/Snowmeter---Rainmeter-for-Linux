@@ -69,7 +69,9 @@ pub const SUPPORTED_BANGS: &[&str] = &[
     "unpausemeasuregroup", "togglepausemeasuregroup", "commandmeasure", "commandmeasuregroup", "pluginbang",
     "movemeter", "activateconfig", "deactivateconfig", "toggleconfig", "move", "setwindowposition", "zpos",
     "changezpos", "draggable", "clickthrough", "settransparency", "show", "showfade", "hide", "hidefade", "toggle",
-    "togglefade",
+    "togglefade", "refreshgroup", "redrawgroup", "updategroup", "deactivateconfiggroup", "showgroup", "hidegroup",
+    "togglegroup", "showfadegroup", "hidefadegroup", "togglefadegroup", "zposgroup", "changezposgroup",
+    "settransparencygroup", "draggablegroup", "clickthroughgroup",
 ];
 
 /// Bangs that are accepted but do nothing on Linux (window-manager features,
@@ -77,7 +79,8 @@ pub const SUPPORTED_BANGS: &[&str] = &[
 pub const IGNORED_BANGS: &[&str] = &[
     "about", "manage", "debug", "skinmenu", "traymenu", "skincustommenu", "editskin", "resetstats", "lsboxhook",
     "snapedges", "keeponscreen", "autoselectscreen", "setclip", "setwallpaper", "loadlayout", "showblur", "hideblur",
-    "toggleblur", "addblur", "removeblur", "fadeduration",
+    "toggleblur", "addblur", "removeblur", "fadeduration", "snapedgesgroup", "keeponscreengroup",
+    "autoselectscreengroup", "fadedurationgroup",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -303,7 +306,9 @@ impl Skin {
     fn write_key_value(&mut self, args: &[String]) {
         let [section, key, value] = [&args[0], &args[1], &args[2]];
         let value = self.eval_value(value);
-        let path = match args.get(3).filter(|f| !f.trim().is_empty()) {
+        // An unquoted file name with spaces arrives as several arguments: it is the last one.
+        let joined = (args.len() > 4).then(|| args[3..].join(" "));
+        let path = match joined.as_ref().or(args.get(3)).filter(|f| !f.trim().is_empty()) {
             Some(f) => {
                 if f.contains("../") || f.contains("..\\") {
                     self.note(format!("!WriteKeyValue: {f} must not contain .."));
@@ -404,6 +409,9 @@ impl Skin {
                 self.note(format!("Incorrect number of arguments for !{name}"));
                 return;
             }
+        }
+        if self.run_group_bang(name, &args) {
+            return;
         }
         let arg = |i: usize| args.get(i).map(String::as_str).unwrap_or("");
         // App-level bangs: the config argument (when present) names the target.
@@ -644,6 +652,43 @@ impl Skin {
                 self.note(format!("Unknown bang !{name}"));
             }
         }
+    }
+
+    /// `!<Name>Group <fixed args> <group>`: forwards to every skin in the config group.
+    /// Returns false when `name` is not a config group bang.
+    fn run_group_bang(&mut self, name: &str, args: &[String]) -> bool {
+        let (argc, ignored) = match name {
+            "refreshgroup" | "redrawgroup" | "updategroup" | "deactivateconfiggroup" | "showgroup" | "hidegroup"
+            | "togglegroup" | "showfadegroup" | "hidefadegroup" | "togglefadegroup" => (0, false),
+            "zposgroup" | "changezposgroup" | "settransparencygroup" | "draggablegroup" | "clickthroughgroup" => (1, false),
+            "snapedgesgroup" | "keeponscreengroup" | "autoselectscreengroup" | "fadedurationgroup" => (1, true),
+            _ => return false,
+        };
+        if args.len() <= argc {
+            self.note(format!("!{name}: Incorrect number of arguments"));
+            return true;
+        }
+        if ignored {
+            log::debug!("[{}] !{name} is not supported on Linux (ignored)", self.config);
+            return true;
+        }
+        let config = format!("Group={}", args[argc].trim());
+        let v = args.first().map(String::as_str).unwrap_or("");
+        let req = match name {
+            "refreshgroup" => AppRequest::Refresh { config: Some(config) },
+            "redrawgroup" => AppRequest::BangOther { config, actions: "[!Redraw]".into() },
+            "updategroup" => AppRequest::BangOther { config, actions: "[!Update]".into() },
+            "deactivateconfiggroup" => AppRequest::Deactivate { config },
+            "showgroup" | "showfadegroup" => AppRequest::Show { config },
+            "hidegroup" | "hidefadegroup" => AppRequest::Hide { config },
+            "togglegroup" | "togglefadegroup" => AppRequest::ToggleVisible { config },
+            "zposgroup" | "changezposgroup" => AppRequest::ZPos { config, value: flag_arg(v).clamp(-2, 2) },
+            "settransparencygroup" => AppRequest::SetTransparency { config, alpha: flag_arg(v).clamp(0, 255) as u8 },
+            "draggablegroup" => AppRequest::SetDraggable { config, value: flag_arg(v) },
+            _ => AppRequest::SetClickThrough { config, value: flag_arg(v) },
+        };
+        self.push_request(req);
+        true
     }
 
     fn parse_num_static(&self, s: &str) -> f64 {
