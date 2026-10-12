@@ -425,7 +425,9 @@ impl Skin {
         let name = entry.name.clone();
         let opt = OptionReader::new(parser, &name, Some(&view));
         let mut m = entry.m.borrow_mut();
-        if !force && m.wants_reread() {
+        // Like Rainmeter, a forced (first/refresh) update re-reads dynamic measures too:
+        // `[Measure]` references to measures updated earlier in this pass are then filled in.
+        if (force && m.dynamic_variables()) || (!force && m.wants_reread()) {
             m.read_options(&opt);
         }
         let mut log = Vec::new();

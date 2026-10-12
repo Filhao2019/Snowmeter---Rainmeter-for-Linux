@@ -365,3 +365,36 @@ fn image_path_without_trailing_separator() {
     let b = s.meter_base("I").unwrap();
     assert_eq!((b.w, b.h), (6.0, 5.0), "image under Path=…Icons was not found");
 }
+
+#[test]
+fn calc_nested_ternaries_with_measure_references() {
+    let fx = Fx::new();
+    let s = fx.skin(
+        "T",
+        "[Variables]\nV=2\n[D]\nMeasure=Calc\nFormula=12\n[M]\nMeasure=Calc\nFormula=2\n\
+         [A]\nMeasure=Calc\nFormula=(#V# = 2 ? ([M] < 3 ? 1 : 0) : #V#)\nDynamicVariables=1\n\
+         [B]\nMeasure=Calc\nFormula=([D] < 10 ? [M] : ([M]*100))\nDynamicVariables=1\n\
+         [C]\nMeasure=Calc\nFormula=[D] < 1 ? 1 : ([D]<7 ? 2 : ([D]<14 ? 3 : 4))\nDynamicVariables=1\n[Mt]\nMeter=String\nText=x\n",
+    );
+    let mut s = s;
+    s.tick();
+    assert_eq!(s.measure_value("A"), Some(1.0));
+    assert_eq!(s.measure_value("B"), Some(200.0));
+    assert_eq!(s.measure_value("C"), Some(3.0));
+    assert!(!s.log_messages().iter().any(|m| m.contains("Calc:")), "{:?}", s.log_messages());
+}
+
+#[test]
+fn calc_formula_over_time_measures_with_format() {
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        "T2",
+        "[D]\nMeasure=Time\nFormat=%#d\n[M]\nMeasure=Time\nFormat=%#m\n\
+         [B]\nMeasure=Calc\nFormula=([D] < 100 ? [M] : ([M]*100))\nDynamicVariables=1\n\
+         [Mt]\nMeter=String\nMeasureName=B\nText=[M]/[D]/%1\n[T3]\nMeter=String\nMeasureName=D\nText=%1|[D]\n",
+    );
+    s.tick();
+    println!("{:?} {:?}", s.meter_text("Mt"), s.meter_text("T3"));
+    assert!(!s.log_messages().iter().any(|m| m.contains("Calc:")), "{:?}", s.log_messages());
+    assert_eq!(s.measure_value("B"), Some(10.0));
+}
