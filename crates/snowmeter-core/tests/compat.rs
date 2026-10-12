@@ -99,3 +99,41 @@ fn check_path_accepts_names_roots_and_ini_files() {
     assert!(check_path(&env, "No\\Such").is_err());
     assert!(!check_config(&env, "No\\Such").fully_supported);
 }
+
+#[test]
+fn disabled_hidden_and_template_references_are_only_notes() {
+    let d = tempfile::tempdir().unwrap();
+    let env = Environment::with_root(d.path());
+    skin(
+        &env,
+        "Q/Main/Main.ini",
+        "[Rainmeter]\n[mOff]\nMeasure=Plugin\nPlugin=HotKey.dll\nDisabled=1\n[mOn]\nMeasure=Plugin\nPlugin=Mystery.dll\n\
+         [Hid]\nMeter=Waveform\nHidden=1\n[Shown]\nMeter=String\nText=x\n",
+    );
+    skin(&env, "Q/Main/Item1.ini", "[Rainmeter]\n[x]\nMeasure=Plugin\nPlugin=Other.dll\n[y]\nMeter=Waveform\n");
+    let r = check_config(&env, "Q\\Main");
+    assert_eq!(r.unsupported_plugins, vec!["Mystery.dll"], "{r:?}");
+    assert!(r.partial.is_empty(), "{:?}", r.partial);
+    let notes = r.notes.join("\n");
+    assert!(notes.contains("HotKey.dll") && notes.contains("Waveform") && notes.contains("Other.dll"), "{notes}");
+}
+
+#[test]
+fn new_native_plugins_count_as_supported() {
+    let d = tempfile::tempdir().unwrap();
+    let env = Environment::with_root(d.path());
+    let mut ini = String::from("[Rainmeter]\n");
+    for (i, p) in [
+        "WebNowPlaying.dll", "GPMDPPlugin", "EasyBlur", "FrostedGlass.dll", "Chameleon", "SysColor", "MeterialYou", "Process", "UsageMonitor",
+        "FolderInfo", "FileView", "ActionTimer", "ConfigActive",
+    ]
+    .iter()
+    .enumerate()
+    {
+        ini.push_str(&format!("[m{i}]\nMeasure=Plugin\nPlugin={p}\n"));
+    }
+    ini.push_str("[t]\nMeter=String\nText=x\nLeftMouseUpAction=[!RefreshGroup A][!ZPosGroup 1 A][!HideFadeGroup B]\n");
+    skin(&env, "N/All/All.ini", &ini);
+    let r = check_config(&env, "N\\All");
+    assert!(r.fully_supported, "{r:?}");
+}

@@ -81,6 +81,24 @@ fn windows_command(cmd: &str) -> Option<String> {
     }
 }
 
+/// Files such as `Item1.ini` or `*Template*.ini` are loaded as templates, not as skins.
+fn is_template_file(file: &str) -> bool {
+    let name = file.rsplit(['\\', '/']).next().unwrap_or(file).to_ascii_lowercase();
+    name.starts_with("item") || name.contains("template")
+}
+
+/// Record a problem. Problems in templates and in sections that are disabled or
+/// hidden from the start only produce a note, they do not make the skin "partial".
+fn flag(rep: &mut CompatReport, quiet: bool, plugin: bool, msg: String) {
+    if quiet {
+        push_unique(&mut rep.notes, format!("{msg} (in a disabled, hidden or template section)"));
+    } else if plugin {
+        push_unique(&mut rep.unsupported_plugins, msg);
+    } else {
+        push_unique(&mut rep.partial, msg);
+    }
+}
+
 const BLUR_OPTIONS: [&str; 5] = ["BLUR", "BLURMODE", "BLURREGION", "AEROBLUR", "BLURREGIONX"];
 
 fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatReport) {
@@ -107,10 +125,14 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
             measures.insert(s.to_ascii_lowercase());
         }
     }
+    let template = is_template_file(file);
     let mut scan: Vec<String> = sections.clone();
     scan.push("Rainmeter".to_string());
     for sec in &scan {
         let entries = parser.section_entries(sec);
+        let quiet = template
+            || (parser.has_key(sec, "Disabled") && parser.read_int(sec, "Disabled", 0, None) != 0)
+            || (parser.has_key(sec, "Hidden") && parser.read_int(sec, "Hidden", 0, None) != 0);
         // Measure / plugin classification.
         if parser.has_key(sec, "Measure") {
             let ty = parser.read_string(sec, "Measure", "", None);
@@ -118,15 +140,15 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
             if ty.eq_ignore_ascii_case("plugin") {
                 let p = parser.read_string(sec, "Plugin", "", None);
                 if p.trim().is_empty() {
-                    push_unique(&mut rep.partial, format!("[{sec}] Measure=Plugin has no Plugin option"));
+                    flag(rep, quiet, false, format!("[{sec}] Measure=Plugin has no Plugin option"));
                 } else if !is_native_plugin(&p) {
-                    push_unique(&mut rep.unsupported_plugins, plugin_display(&p));
+                    flag(rep, quiet, true, plugin_display(&p));
                 }
             } else if !is_known_measure_type(ty) {
-                push_unique(&mut rep.partial, format!("Measure type \"{ty}\""));
+                flag(rep, quiet, false, format!("Measure type \"{ty}\""));
             } else if canonical_plugin_name(ty).is_some() && !is_native_plugin(ty) {
                 // Plugin used by its internal measure name (Measure=Process).
-                push_unique(&mut rep.unsupported_plugins, ty.to_string());
+                flag(rep, quiet, true, ty.to_string());
             }
         }
         // Meter type.
@@ -134,7 +156,7 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
             let ty = parser.read_string(sec, "Meter", "", None);
             let ty = ty.trim();
             if !is_supported_meter(ty) {
-                push_unique(&mut rep.partial, format!("Meter type \"{ty}\""));
+                flag(rep, quiet, false, format!("Meter type \"{ty}\""));
             }
             for (k, v) in &entries {
                 let is_mn = k.strip_prefix("MEASURENAME").map(|r| r.chars().all(|c| c.is_ascii_digit())).unwrap_or(false);
@@ -142,7 +164,7 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
                     let v = parser.replace_variables(v);
                     let v = v.trim();
                     if !v.is_empty() && !v.contains(['#', '[']) && !measures.contains(&v.to_ascii_lowercase()) {
-                        push_unique(&mut rep.partial, format!("[{sec}] {} \"{v}\" refers to a missing measure", k.to_ascii_lowercase().replace("measurename", "MeasureName")));
+                        flag(rep, quiet, false, format!("[{sec}] {} \"{v}\" refers to a missing measure", k.to_ascii_lowercase().replace("measurename", "MeasureName")));
                     }
                 }
             }
@@ -171,7 +193,7 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
                         match bang_support(&name) {
                             BangSupport::Supported => {}
                             BangSupport::Ignored => push_unique(&mut rep.notes, format!("!{name} has no effect on Linux")),
-                            BangSupport::Unknown => push_unique(&mut rep.partial, format!("Bang !{name}")),
+                            BangSupport::Unknown => flag(rep, quiet, false, format!("Bang !{name}")),
                         }
                     }
                     Action::Command(c) => {
