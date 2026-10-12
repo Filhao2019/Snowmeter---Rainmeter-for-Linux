@@ -91,12 +91,32 @@ pub fn socket_path() -> PathBuf {
     if let Some(p) = std::env::var_os("SNOWMETER_SOCKET").filter(|v| !v.is_empty()) {
         return PathBuf::from(p);
     }
-    socket_path_for(std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty()).map(PathBuf::from), unsafe { libc::getuid() })
+    let config = std::env::var_os("SNOWMETER_CONFIG_DIR").filter(|v| !v.is_empty()).map(PathBuf::from);
+    socket_path_for(
+        std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty()).map(PathBuf::from),
+        unsafe { libc::getuid() },
+        config.as_deref(),
+    )
 }
 
-pub fn socket_path_for(runtime_dir: Option<PathBuf>, uid: u32) -> PathBuf {
+/// The default socket, or (when the config root is overridden, as tests and
+/// staging do) one named after a hash of that root, so such runs can never
+/// reach the user's real instance.
+pub fn socket_path_for(runtime_dir: Option<PathBuf>, uid: u32, config_override: Option<&Path>) -> PathBuf {
+    let name = match config_override {
+        None => "snowmeter.sock".to_string(),
+        Some(root) => {
+            let canon = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for b in canon.as_os_str().as_encoded_bytes() {
+                h = (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01b3);
+            }
+            format!("snowmeter-{h:016x}.sock")
+        }
+    };
     match runtime_dir {
-        Some(d) => d.join("snowmeter.sock"),
+        Some(d) => d.join(name),
+        None if config_override.is_some() => PathBuf::from(format!("/tmp/{}", name.replacen("snowmeter-", &format!("snowmeter-{uid}-"), 1))),
         None => PathBuf::from(format!("/tmp/snowmeter-{uid}.sock")),
     }
 }
@@ -230,8 +250,20 @@ mod tests {
 
     #[test]
     fn socket_path_fallback() {
-        assert_eq!(socket_path_for(Some("/run/user/1000".into()), 1000), PathBuf::from("/run/user/1000/snowmeter.sock"));
-        assert_eq!(socket_path_for(None, 42), PathBuf::from("/tmp/snowmeter-42.sock"));
+        assert_eq!(socket_path_for(Some("/run/user/1000".into()), 1000, None), PathBuf::from("/run/user/1000/snowmeter.sock"));
+        assert_eq!(socket_path_for(None, 42, None), PathBuf::from("/tmp/snowmeter-42.sock"));
+    }
+
+    #[test]
+    fn overridden_config_root_gets_its_own_socket() {
+        let rt = Some(PathBuf::from("/run/user/1000"));
+        let default = socket_path_for(rt.clone(), 1000, None);
+        let a = socket_path_for(rt.clone(), 1000, Some(Path::new("/tmp/cfg-a")));
+        let b = socket_path_for(rt.clone(), 1000, Some(Path::new("/tmp/cfg-b")));
+        assert_ne!(a, default);
+        assert_ne!(a, b);
+        assert_eq!(a, socket_path_for(rt, 1000, Some(Path::new("/tmp/cfg-a"))));
+        assert_ne!(socket_path_for(None, 42, Some(Path::new("/x"))), PathBuf::from("/tmp/snowmeter-42.sock"));
     }
 
     #[test]
