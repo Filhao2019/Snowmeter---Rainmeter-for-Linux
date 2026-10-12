@@ -175,7 +175,14 @@ pub fn shape_matrix(s: &ShapeDef) -> Matrix {
     let t = &s.transforms;
     let b = widened_bounds(s);
     let center = ((b.0 + b.2) / 2.0, (b.1 + b.3) / 2.0);
+    // Explicit anchors of a plain shape are offsets from its bounds' top-left
+    // corner. Skins written against Rainmeter (Monterey and ModernGadgets clock
+    // hands and moon phases) give the *absolute* pivot to `Combine` shapes and
+    // render correctly there, so a combined geometry measures them from the
+    // origin instead.
+    let combined = matches!(s.geom, Geom::Polys(_));
     let anchor = |a: Option<(f64, f64)>| match a {
+        Some((ax, ay)) if combined => (ax, ay),
         Some((ax, ay)) => (b.0 + ax, b.1 + ay),
         None => center,
     };

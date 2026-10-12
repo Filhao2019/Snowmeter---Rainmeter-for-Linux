@@ -346,6 +346,25 @@ mod tests {
     }
 
     #[test]
+    fn combined_shape_anchors_are_absolute_like_clock_hands() {
+        // A clock hand around (100,100): its parts hang above the pivot, and the
+        // anchor given to the combine is the pivot itself (Monterey, ModernGadgets).
+        let (s, log) = parse(
+            "Shape=Rectangle 98,60,4,20 | StrokeWidth 0\nShape2=Rectangle 98,80,4,30 | StrokeWidth 0\n\
+             Shape3=Combine Shape | Union Shape2 | Rotate 90,100,100",
+        );
+        assert!(log.is_empty(), "{log:?}");
+        let b = drawn_bounds(&s[2]).unwrap();
+        // Rotated 90 degrees clockwise about (100,100): the hand now points right.
+        assert!((b.0 - 90.0).abs() < 1e-3 && (b.2 - 140.0).abs() < 1e-3, "{b:?}");
+        assert!((b.1 - 98.0).abs() < 1e-3 && (b.3 - 102.0).abs() < 1e-3, "{b:?}");
+        // A plain shape keeps the documented top-left-relative anchor.
+        let (s, _) = parse("Shape=Rectangle 98,60,4,40 | StrokeWidth 0 | Rotate 90,2,40");
+        let b = drawn_bounds(&s[0]).unwrap();
+        assert!((b.0 - 100.0).abs() < 1e-3 && (b.2 - 140.0).abs() < 1e-3, "{b:?}");
+    }
+
+    #[test]
     fn transformed_bounds_and_hit_test() {
         let (s, _) = parse("Shape=Rectangle 0,0,10,10 | StrokeWidth 0 | Offset 20,0");
         let b = drawn_bounds(&s[0]).unwrap();
