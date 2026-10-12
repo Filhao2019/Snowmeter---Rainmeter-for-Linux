@@ -4,6 +4,7 @@
 pub mod actions;
 pub mod mouse;
 pub mod options;
+pub(crate) mod script_host;
 
 use crate::bangs::Action;
 use crate::env::Environment;
@@ -395,8 +396,10 @@ impl Skin {
 
     /// Update one measure; returns its pending actions and name.
     pub(crate) fn step_measure(&mut self, i: usize, force: bool) -> (Vec<String>, String) {
+        let size = self.size;
         let Skin { parser, measures, geom, env, skin_dir, options, counter, messages, config, .. } = self;
         let view = View { measures, geom };
+        let host = script_host::SkinHost { parser, view: &view, size, skin_dir: skin_dir.clone() };
         let entry = &measures[i];
         let name = entry.name.clone();
         let opt = OptionReader::new(parser, &name, Some(&view));
@@ -406,7 +409,7 @@ impl Skin {
         }
         let mut log = Vec::new();
         let lookup = |n: &str| view.measure_value(n);
-        let mut ctx = MeasureCtx { env, skin_dir, update_ms: options.update_ms, log: &mut log, lookup: &lookup, counter: *counter };
+        let mut ctx = MeasureCtx { env, skin_dir, update_ms: options.update_ms, log: &mut log, lookup: &lookup, counter: *counter, host: Some(&host) };
         if force {
             m.force_update(&mut ctx, Some(&opt));
         } else {

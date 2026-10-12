@@ -451,8 +451,21 @@ impl Skin {
                 } else {
                     (arg(0).to_string(), arg(1).to_string())
                 };
+                let mut queued = Vec::new();
                 for i in self.measure_targets(&m, name.ends_with("group")) {
-                    self.measures[i].m.borrow_mut().command(&cmd);
+                    let view = super::View { measures: &self.measures, geom: &self.geom };
+                    let host = super::script_host::SkinHost { parser: &self.parser, view: &view, size: self.size(), skin_dir: self.skin_dir.clone() };
+                    let mut ms = self.measures[i].m.borrow_mut();
+                    ms.command_host(&cmd, Some(&host));
+                    let acts = ms.take_actions();
+                    if !acts.is_empty() {
+                        queued.push((self.measures[i].name.clone(), acts));
+                    }
+                }
+                for (n, acts) in queued {
+                    for a in acts {
+                        self.execute_in(&a, Some(&n));
+                    }
                 }
             }
             "movemeter" => {

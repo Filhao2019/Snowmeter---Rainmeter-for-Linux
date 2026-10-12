@@ -10,6 +10,7 @@ pub mod memory;
 pub mod net;
 pub mod plugin;
 pub mod registry;
+pub mod script;
 pub mod string;
 pub mod substitute;
 #[cfg(test)]
@@ -36,6 +37,8 @@ pub struct MeasureCtx<'a> {
     pub lookup: &'a dyn Fn(&str) -> Option<f64>,
     /// Skin update counter (1 on the first update), used by Calc's `Counter`.
     pub counter: u64,
+    /// Access to the skin for Script measures (variables, measures, meters).
+    pub host: Option<&'a dyn script::ScriptHost>,
 }
 
 pub trait MeasureImpl {
@@ -70,6 +73,18 @@ pub trait MeasureImpl {
     /// `[M:Func(args)]` custom function call (Script/Plugin measures).
     fn call_function(&mut self, _call: &str) -> Option<String> {
         None
+    }
+    /// Read-only form of `call_function` used by section-variable expansion.
+    fn inline_call(&self, _call: &str) -> Option<String> {
+        None
+    }
+    /// `!CommandMeasure` with skin access (Script measures).
+    fn command_host(&mut self, args: &str, _host: Option<&dyn script::ScriptHost>) {
+        self.command(args);
+    }
+    /// Actions (bangs) queued by the implementation, run by the skin.
+    fn take_actions(&mut self) -> Vec<String> {
+        Vec::new()
     }
     /// Messages produced while reading options; drained by `Measure`.
     fn take_log(&mut self) -> Vec<String> {
@@ -368,7 +383,9 @@ impl Measure {
 
     /// Actions fired this tick (If*, OnUpdate, OnChange), unexpanded. The skin executes them.
     pub fn take_actions(&mut self) -> Vec<String> {
-        std::mem::take(&mut self.pending)
+        let mut v = std::mem::take(&mut self.pending);
+        v.extend(self.imp.take_actions());
+        v
     }
 
     /// Log lines produced since the last call.
@@ -452,6 +469,9 @@ impl Measure {
     /// `None` means the selector is invalid and the text stays unchanged.
     pub fn section_variable_opt(&self, param: Option<&str>) -> Option<String> {
         let Some(p) = param else { return Some(self.default_string()) };
+        if let Some(r) = self.imp.inline_call(p) {
+            return Some(r);
+        }
         let first_alpha = p.chars().next().is_some_and(|c| c.is_alphabetic());
         #[derive(PartialEq)]
         enum Kind {
@@ -540,7 +560,12 @@ impl Measure {
 
     /// `!CommandMeasure`.
     pub fn command(&mut self, args: &str) {
-        self.imp.command(args);
+        self.command_host(args, None);
+    }
+
+    /// `!CommandMeasure` with skin access.
+    pub fn command_host(&mut self, args: &str, host: Option<&dyn script::ScriptHost>) {
+        self.imp.command_host(args, host);
         self.log.borrow_mut().extend(self.imp.take_log());
     }
 

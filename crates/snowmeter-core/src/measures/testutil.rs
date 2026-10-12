@@ -33,6 +33,6 @@ pub fn ctx_run<R>(s: &TestSkin, f: impl FnOnce(&mut super::MeasureCtx) -> R) -> 
 pub fn ctx_with<R>(s: &TestSkin, lookup: &dyn Fn(&str) -> Option<f64>, f: impl FnOnce(&mut super::MeasureCtx) -> R) -> R {
     let mut log = Vec::new();
     let dir = s.env.skins_dir.join("T");
-    let mut ctx = super::MeasureCtx { env: &s.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup, counter: 1 };
+    let mut ctx = super::MeasureCtx { env: &s.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup, counter: 1, host: None };
     f(&mut ctx)
 }

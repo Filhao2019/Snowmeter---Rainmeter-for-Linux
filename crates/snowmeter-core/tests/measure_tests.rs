@@ -37,7 +37,7 @@ impl Skin {
     fn tick(&self, m: &mut Measure, counter: u64, lookup: &dyn Fn(&str) -> Option<f64>) -> bool {
         let mut log = Vec::new();
         let dir = self.env.skins_dir.join("T");
-        let mut ctx = MeasureCtx { env: &self.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup, counter };
+        let mut ctx = MeasureCtx { env: &self.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup, counter, host: None };
         m.update(&mut ctx, Some(&OptionReader { parser: &self.p, section: &m.name.clone(), sv: None }))
     }
 }
@@ -201,7 +201,7 @@ fn negative_divider_only_updates_when_forced() {
     let lk = move |n: &str| n.eq_ignore_ascii_case("Src").then(|| c.get());
     let mut log = Vec::new();
     let dir = s.env.skins_dir.join("T");
-    let mut ctx = MeasureCtx { env: &s.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup: &lk, counter: 1 };
+    let mut ctx = MeasureCtx { env: &s.env, skin_dir: &dir, update_ms: 1000, log: &mut log, lookup: &lk, counter: 1, host: None };
     assert!(m.force_update(&mut ctx, None));
     assert_eq!(m.value(), 7.0);
 }
