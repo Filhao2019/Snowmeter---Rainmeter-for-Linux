@@ -32,6 +32,8 @@ struct WinState {
     pos: (i32, i32),
     last_size: (i32, i32),
     rects: Vec<RectI>,
+    /// Hash of the alpha plane the current `rects` were built from.
+    mask_key: Option<u64>,
     interval: i64,
     drag: Option<Drag>,
     pointer: (f64, f64),
@@ -115,6 +117,7 @@ impl SkinWindow {
                 pos: (0, 0),
                 last_size: (w, h),
                 rects: Vec::new(),
+                mask_key: None,
                 interval: 0,
                 drag: None,
                 pointer: (0.0, 0.0),
@@ -314,7 +317,11 @@ impl SkinWindow {
     /// Replace the running skin with a freshly loaded one.
     pub fn replace_skin(self: &Rc<Self>, skin: Skin) {
         *self.skin.borrow_mut() = skin;
-        self.st.borrow_mut().rects.clear();
+        {
+            let mut st = self.st.borrow_mut();
+            st.rects.clear();
+            st.mask_key = None;
+        }
         self.area.queue_draw();
         self.update_region(true);
         self.arm_timer();
@@ -395,14 +402,20 @@ impl SkinWindow {
     // ------------------------------------------------------------ input region
 
     fn update_region(&self, force: bool) {
-        let rects = if self.st.borrow().cfg.click_through {
-            Vec::new()
+        let (rects, key) = if self.st.borrow().cfg.click_through {
+            (Vec::new(), None)
         } else {
             let (w, h, alpha) = self.skin.borrow().hit_mask();
-            region::mask_rects(w, h, &alpha)
+            let key = region::mask_key(w, h, &alpha);
+            // Same pixels as last time: the rectangles cannot have changed.
+            if !force && self.st.borrow().mask_key == Some(key) {
+                return;
+            }
+            (region::mask_rects(w, h, &alpha), Some(key))
         };
         {
             let mut st = self.st.borrow_mut();
+            st.mask_key = key;
             if !force && st.rects == rects {
                 return;
             }

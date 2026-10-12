@@ -129,6 +129,13 @@ pub enum Bind {
 /// Bind the socket. If another instance answers, report it; a stale socket
 /// file is removed first.
 pub fn bind(path: &Path) -> std::io::Result<Bind> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    // Never talk to (or replace) a socket that belongs to another user.
+    if let Ok(md) = std::fs::symlink_metadata(path) {
+        if md.uid() != unsafe { libc::geteuid() } {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "socket path is owned by another user"));
+        }
+    }
     if is_running(path) {
         return Ok(Bind::AlreadyRunning);
     }
@@ -136,7 +143,23 @@ pub fn bind(path: &Path) -> std::io::Result<Bind> {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    Ok(Bind::Listener(UnixListener::bind(path)?))
+    // `chmod 0600` right after bind (umask is process-wide, so not used); the
+    // peer-UID check in `serve` also rejects other users during that instant.
+    let listener = UnixListener::bind(path)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(Bind::Listener(listener))
+}
+
+/// UID of the process on the other end of `s` (`SO_PEERCRED`).
+fn peer_uid(s: &UnixStream) -> Option<u32> {
+    use std::os::fd::AsRawFd;
+    let mut cred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: `cred`/`len` are valid for the call; the fd is open.
+    let rc = unsafe {
+        libc::getsockopt(s.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, &mut cred as *mut _ as *mut libc::c_void, &mut len)
+    };
+    (rc == 0).then_some(cred.uid)
 }
 
 /// Accept connections on a background thread; `handler` turns a request into
@@ -148,6 +171,9 @@ where
     std::thread::spawn(move || {
         for conn in listener.incoming() {
             let Ok(mut s) = conn else { continue };
+            if peer_uid(&s) != Some(unsafe { libc::geteuid() }) {
+                continue;
+            }
             let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
             let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
             let mut line = String::new();
@@ -224,6 +250,18 @@ mod tests {
         assert_eq!(send(&path, &Request::List).unwrap(), "ok\nA\nB\n");
         assert!(is_error(&send(&path, &Request::Quit).unwrap()));
         assert!(matches!(bind(&path).unwrap(), Bind::AlreadyRunning));
+    }
+
+    #[test]
+    fn socket_is_private_and_peer_is_checked() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("p.sock");
+        let Bind::Listener(_l) = bind(&path).unwrap() else { panic!() };
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let c = UnixStream::connect(&path).unwrap();
+        assert_eq!(peer_uid(&c), Some(unsafe { libc::geteuid() }));
     }
 
     #[test]

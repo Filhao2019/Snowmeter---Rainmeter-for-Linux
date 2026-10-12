@@ -34,7 +34,7 @@ fn css_color(c: Color) -> String {
 }
 
 pub fn css_for(spec: &InputTextSpec) -> String {
-    let family = spec.font_face.replace('\'', "");
+    let family = spec.font_face.chars().filter(|c| !matches!(c, '\'' | '"' | '\\' | '{' | '}' | ';')).collect::<String>();
     format!(
         "window.snow-input {{ background: {bg}; }} \
          window.snow-input entry {{ background: {bg}; color: {fg}; font-family: '{family}'; font-size: {size}pt; \
@@ -42,7 +42,7 @@ pub fn css_for(spec: &InputTextSpec) -> String {
          window.snow-input entry text {{ color: {fg}; }}",
         bg = css_color(spec.solid_color),
         fg = css_color(spec.font_color),
-        size = spec.font_size
+        size = if spec.font_size.is_finite() { spec.font_size.clamp(1.0, 500.0) } else { 8.0 }
     )
 }
 
@@ -111,7 +111,10 @@ pub fn show(spec: &InputTextSpec, origin: (i32, i32), on_submit: impl Fn(String)
             }
         });
     }
-    win.connect_close_request(|_| {
+    win.connect_close_request(move |_| {
+        if let Some(display) = gtk4::gdk::Display::default() {
+            gtk4::style_context_remove_provider_for_display(&display, &provider);
+        }
         CURRENT.with(|c| *c.borrow_mut() = None);
         gtk4::glib::Propagation::Proceed
     });

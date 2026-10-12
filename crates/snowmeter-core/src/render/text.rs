@@ -115,10 +115,20 @@ pub fn font_metrics_computed() -> usize {
     METRICS_COMPUTED.with(|c| c.get())
 }
 
+/// Keep font sizes in a range Pango accepts (negative, NaN and enormous sizes
+/// trigger assertion failures).
+pub fn clamp_px(px: f64) -> f64 {
+    if px.is_nan() {
+        13.0
+    } else {
+        px.clamp(1.0, 2000.0)
+    }
+}
+
 fn font_desc(fmt: &TextFormat) -> pango::FontDescription {
     let mut fd = pango::FontDescription::new();
     fd.set_family(&fmt.family);
-    fd.set_absolute_size(fmt.em * PANGO_SCALE);
+    fd.set_absolute_size(clamp_px(fmt.em) * PANGO_SCALE);
     fd.set_weight(pango::Weight::__Unknown(fmt.weight));
     if fmt.italic {
         fd.set_style(pango::Style::Italic);
@@ -212,7 +222,7 @@ fn make_layout(cr: &cairo::Context, a: &LayoutArgs) -> pango::Layout {
         }
         match (&s.kind, a.pass) {
             (SpanKind::Family(f), _) => push(pango::AttrString::new_family(f).into(), s),
-            (SpanKind::SizePx(px), _) => push(pango::AttrSize::new_size_absolute((px * PANGO_SCALE) as i32).into(), s),
+            (SpanKind::SizePx(px), _) => push(pango::AttrSize::new_size_absolute((clamp_px(*px) * PANGO_SCALE) as i32).into(), s),
             (SpanKind::Color(c), Pass::Main) => color_attrs(*c, s),
             (SpanKind::Color(_), _) => {}
             (SpanKind::Weight(w), _) => push(pango::AttrInt::new_weight(pango::Weight::__Unknown(*w)).into(), s),
@@ -428,6 +438,16 @@ pub fn draw(cr: &cairo::Context, d: &DrawSpec) {
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    #[test]
+    fn font_sizes_are_clamped() {
+        assert_eq!(clamp_px(-4.0), 1.0);
+        assert_eq!(clamp_px(1e12), 2000.0);
+        assert_eq!(clamp_px(f64::NAN), 13.0);
+        assert_eq!(clamp_px(12.0), 12.0);
+        let fmt = TextFormat { family: "Sans".into(), em: -50.0, weight: 400, italic: false, accurate: false, antialias: true };
+        let _ = font_metrics(&fmt);
+    }
 
     #[test]
     fn font_metrics_are_cached_per_format() {
