@@ -46,7 +46,12 @@ sudo apt install libgtk-4-dev libcairo2-dev libpango1.0-dev libfontconfig-dev bu
 cargo build --release
 target/release/snowmeter            # start the app
 cargo install --path crates/snowmeter   # optional
+cargo clean                         # optional: frees the ~1 GB build folder
 ```
+
+Snowmeter uses GTK's Cairo renderer by default (skins are drawn with Cairo, and
+the GL/Vulkan renderers roughly double its private memory). Start it with
+`GSK_RENDERER=ngl snowmeter` to use another renderer.
 
 ## Usage
 

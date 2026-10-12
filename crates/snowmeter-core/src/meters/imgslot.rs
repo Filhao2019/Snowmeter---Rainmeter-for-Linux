@@ -3,7 +3,7 @@
 
 use super::MeterInputs;
 use crate::parser::OptionReader;
-use crate::render::image::{process, to_surface, ImageOptions};
+use crate::render::image::{process, stamp_of, to_surface, ImageOptions};
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -12,8 +12,6 @@ pub struct ImageSlot {
     pub options: ImageOptions,
     key: Option<String>,
     surface: Option<cairo::ImageSurface>,
-    /// Alpha channel of the processed image (row-major), for pixel hit tests.
-    alpha: Vec<u8>,
 }
 
 /// `.png` is appended when the last path component has no dot.
@@ -47,19 +45,22 @@ impl ImageSlot {
             return false;
         }
         let path: PathBuf = crate::paths::resolve_path(&m.res.skin_dir, &with_default_extension(self.name.trim()));
+        let stamp = stamp_of(&path);
+        let key = stamp.map(|st| format!("{}|{:?}|{:?}", path.display(), self.options, st));
+        if key.is_some() && key == self.key && self.surface.is_some() {
+            return false;
+        }
         let mut log = Vec::new();
         let raw = m.res.images.load(&path, &mut log);
         for l in log {
             m.log(l);
         }
-        let key = raw.as_ref().map(|r| format!("{}|{:?}|{:p}", path.display(), self.options, std::rc::Rc::as_ptr(r)));
+        let key = if raw.is_some() { key } else { None };
         if key == self.key && (self.surface.is_some() || key.is_none()) {
             return false;
         }
         self.key = key;
-        let processed = raw.map(|r| process(&r, &self.options));
-        self.alpha = processed.as_ref().map(|p| p.rgba.chunks_exact(4).map(|px| px[3]).collect()).unwrap_or_default();
-        self.surface = processed.and_then(|p| to_surface(&p));
+        self.surface = raw.and_then(|r| to_surface(&process(&r, &self.options)));
         true
     }
 
@@ -73,7 +74,16 @@ impl ImageSlot {
         if x < 0 || y < 0 || x >= w || y >= h {
             return 0;
         }
-        self.alpha.get((y * w + x) as usize).copied().unwrap_or(0)
+        // ARGB32 keeps alpha in the top byte; premultiplying leaves it unchanged.
+        let Some(surf) = &self.surface else { return 0 };
+        let i = y as usize * surf.stride() as usize + x as usize * 4;
+        let mut a = 0;
+        let _ = surf.with_data(|d| {
+            if let Some(px) = d.get(i..i + 4) {
+                a = (u32::from_ne_bytes([px[0], px[1], px[2], px[3]]) >> 24) as u8;
+            }
+        });
+        a
     }
 
     pub fn size(&self) -> Option<(i32, i32)> {
