@@ -351,3 +351,17 @@ fn empty_bin_requests_confirmation_and_silent_does_not() {
     s.execute("[!CommandMeasure R \"EmptyBinSilent\"]");
     assert!(matches!(s.take_requests().as_slice(), [AppRequest::EmptyTrash { confirm: false }]));
 }
+
+/// Image `Path` without a trailing separator still joins with ImageName
+/// (Rainmeter's MeterImage calls AppendBackslashIfMissing; Mond's weather icon relies on it).
+#[test]
+fn image_path_without_trailing_separator() {
+    let fx = Fx::new();
+    let d = fx.dir("ImgPath");
+    std::fs::create_dir_all(d.join("Icons")).unwrap();
+    write_png(&d.join("Icons").join("rain.png"), 6, 5);
+    let mut s = fx.skin("ImgPath", "[I]\nMeter=Image\nPath=#CURRENTPATH#Icons\nImageName=rain\n");
+    s.tick();
+    let b = s.meter_base("I").unwrap();
+    assert_eq!((b.w, b.h), (6.0, 5.0), "image under Path=…Icons was not found");
+}

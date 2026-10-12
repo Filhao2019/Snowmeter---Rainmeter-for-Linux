@@ -58,6 +58,10 @@ impl MeterImpl for ImageMeter {
         if path.is_empty() {
             path = opt.string("Path", "");
         }
+        // Rainmeter: PathUtil::AppendBackslashIfMissing(path) (MeterImage.cpp).
+        if !path.is_empty() && !path.ends_with(['\\', '/']) {
+            path.push('\\');
+        }
         self.image_path = path;
         self.tile = opt.bool("Tile", false);
         self.preserve = opt.int("PreserveAspectRatio", 0).clamp(0, 255) as u8;
