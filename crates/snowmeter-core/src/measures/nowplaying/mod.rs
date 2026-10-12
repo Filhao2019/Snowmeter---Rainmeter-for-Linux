@@ -3,6 +3,7 @@
 //! publishes snapshots which measures read in `update`.
 
 pub mod mpris;
+pub mod spotify;
 pub mod web;
 
 use super::{MeasureCtx, MeasureImpl};

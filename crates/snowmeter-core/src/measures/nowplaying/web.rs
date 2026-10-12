@@ -108,13 +108,18 @@ pub fn web_value(kind: WKind, p: Option<&PlayerData>) -> (f64, Option<String>) {
 
 /// `!CommandMeasure` text to a player command. `Ok(None)` = accepted, nothing to send.
 pub fn web_dispatch(players: &[PlayerData], args: &str) -> Result<Option<(String, Call)>, String> {
+    dispatch_player(pick(players), args, "WebNowPlaying")
+}
+
+/// Same as `web_dispatch` for an already chosen player; `who` prefixes errors.
+pub fn dispatch_player(player: Option<&PlayerData>, args: &str, who: &str) -> Result<Option<(String, Call)>, String> {
     let mut it = args.split_whitespace();
     let cmd = it.next().unwrap_or("").to_ascii_lowercase();
     let arg = it.next().unwrap_or("");
-    let Some(p) = pick(players) else { return Ok(None) };
+    let Some(p) = player else { return Ok(None) };
     let amount = |what: &str| -> Result<(f64, bool), String> {
         let rel = arg.starts_with('+') || arg.starts_with('-');
-        arg.parse::<f64>().map(|v| (v, rel)).map_err(|_| format!("WebNowPlaying: {what} needs a number"))
+        arg.parse::<f64>().map(|v| (v, rel)).map_err(|_| format!("{who}: {what} needs a number"))
     };
     let call = match cmd.as_str() {
         "playpause" | "toggleplaypause" => Call::PlayPause,
@@ -142,7 +147,7 @@ pub fn web_dispatch(players: &[PlayerData], args: &str) -> Result<Option<(String
         }),
         // MPRIS has no rating verbs.
         "togglethumbsup" | "togglethumbsdown" | "rating" | "setrating" | "like" | "dislike" => return Ok(None),
-        other => return Err(format!("WebNowPlaying: unknown command '{other}'")),
+        other => return Err(format!("{who}: unknown command '{other}'")),
     };
     Ok(Some((p.bus.clone(), call)))
 }
