@@ -22,7 +22,7 @@ use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -303,9 +303,11 @@ pub enum Type {
     DeviceName,
     DeviceId,
     DeviceList,
+    /// AudioLevelBeta only; always 0 here.
+    BufferStatus,
 }
 
-const TYPE_NAMES: [(&str, Type); 11] = [
+const TYPE_NAMES: [(&str, Type); 12] = [
     ("rms", Type::Rms),
     ("peak", Type::Peak),
     ("fft", Type::Fft),
@@ -317,6 +319,7 @@ const TYPE_NAMES: [(&str, Type); 11] = [
     ("devicename", Type::DeviceName),
     ("deviceid", Type::DeviceId),
     ("devicelist", Type::DeviceList),
+    ("bufferstatus", Type::BufferStatus),
 ];
 
 /// Per-parent values applied when reading a snapshot.
@@ -406,7 +409,7 @@ pub fn eval(q: &Query, p: &Params, s: &Snapshot) -> f64 {
             }
         }
         Type::DeviceStatus => s.live as u8 as f64,
-        Type::Format | Type::DeviceName | Type::DeviceId | Type::DeviceList => 0.0,
+        Type::Format | Type::DeviceName | Type::DeviceId | Type::DeviceList | Type::BufferStatus => 0.0,
     }
 }
 
@@ -423,6 +426,10 @@ pub struct ParentData {
     dsp: Mutex<Dsp>,
     snap: Mutex<Snapshot>,
     params: Mutex<Params>,
+    /// Next implicit `FFTIdx` / `BandIdx` for children that set none (AudioLevelBeta
+    /// skins such as Fountain of Colors generate unnumbered `Type=Band` children).
+    next_fft: AtomicUsize,
+    next_band: AtomicUsize,
 }
 
 impl ParentData {
@@ -430,7 +437,13 @@ impl ParentData {
         let dsp = Dsp::new(cfg, RATE, CHANNELS);
         let mut snap = Snapshot::default();
         dsp.fill_snapshot(&mut snap);
-        ParentData { dsp: Mutex::new(dsp), snap: Mutex::new(snap), params: Mutex::new(params) }
+        ParentData {
+            dsp: Mutex::new(dsp),
+            snap: Mutex::new(snap),
+            params: Mutex::new(params),
+            next_fft: AtomicUsize::new(0),
+            next_band: AtomicUsize::new(0),
+        }
     }
 
     /// Run the DSP on `samples` and publish the result.
@@ -766,6 +779,14 @@ pub struct AudioLevel {
     channel: usize,
     fft_idx: i64,
     band_idx: i64,
+    /// `FFTIdx` / `BandIdx` given explicitly (otherwise numbered in creation order).
+    fft_explicit: bool,
+    band_explicit: bool,
+    auto_fft: Option<usize>,
+    auto_band: Option<usize>,
+    /// Skin has `Update=-1`: the parent asks the skin to update it as audio arrives.
+    push: bool,
+    next_push: Instant,
     mine: Option<Arc<ParentData>>,
     link: Option<Arc<Link>>,
     missing_logged: bool,
@@ -785,6 +806,12 @@ impl AudioLevel {
             channel: CHANNEL_SUM,
             fft_idx: -1,
             band_idx: -1,
+            fft_explicit: false,
+            band_explicit: false,
+            auto_fft: None,
+            auto_band: None,
+            push: false,
+            next_push: Instant::now(),
             mine: None,
             link: None,
             missing_logged: false,
@@ -803,8 +830,8 @@ impl AudioLevel {
         Query {
             ty: self.ty,
             channel: self.channel,
-            fft_idx: self.fft_idx.max(0) as usize,
-            band_idx: self.band_idx.max(0) as usize,
+            fft_idx: if self.fft_explicit { self.fft_idx.max(0) as usize } else { self.auto_fft.unwrap_or(0) },
+            band_idx: if self.band_explicit { self.band_idx.max(0) as usize } else { self.auto_band.unwrap_or(0) },
         }
     }
 
@@ -882,6 +909,8 @@ impl MeasureImpl for AudioLevel {
                 )),
             }
         }
+        self.fft_explicit = opt.has("FFTIdx");
+        self.band_explicit = opt.has("BandIdx");
         self.fft_idx = opt.int("FFTIdx", self.fft_idx).max(0);
         self.band_idx = opt.int("BandIdx", self.band_idx).max(0);
     }
@@ -901,9 +930,30 @@ impl MeasureImpl for AudioLevel {
                 ctx.log.push(format!("AudioLevel: Couldn't find Parent measure '{}'.", self.parent_name));
             }
         }
+        if self.parent_name.is_empty() && ctx.update_ms < 0 {
+            self.push = true;
+        }
         let Some(pd) = self.data() else { return 0.0 };
+        if self.auto_fft.is_none() && !self.fft_explicit && self.ty == Type::Fft {
+            self.auto_fft = Some(pd.next_fft.fetch_add(1, Ordering::Relaxed));
+        }
+        if self.auto_band.is_none() && !self.band_explicit && self.ty == Type::Band {
+            self.auto_band = Some(pd.next_band.fetch_add(1, Ordering::Relaxed));
+        }
         let (Ok(p), Ok(s)) = (pd.params.lock(), pd.snap.lock()) else { return 0.0 };
         eval(&self.query(), &p, &s)
+    }
+
+    fn next_wakeup(&self, now: Instant) -> Option<Duration> {
+        (self.push && self.mine.is_some()).then(|| self.next_push.saturating_duration_since(now))
+    }
+
+    fn poll_timers(&mut self, now: Instant) -> Vec<String> {
+        if self.push && self.mine.is_some() && now >= self.next_push {
+            self.next_push = now + Duration::from_millis(33);
+            return vec![format!("[!UpdateMeasure \"{}\"]", self.section)];
+        }
+        Vec::new()
     }
 
     fn string_value(&self) -> Option<String> {
@@ -1126,6 +1176,33 @@ mod tests {
         // A dropped parent reads as 0.
         drop(pd);
         assert_eq!(ctx_run(&s, |ctx| c.update(ctx)), 0.0);
+    }
+
+    #[test]
+    fn unnumbered_band_children_get_consecutive_indexes_and_parent_pushes_updates() {
+        let s = skin("[P]\nMeasure=AudioLevel\nBands=4\nFFTSize=64\n[A]\nMeasure=AudioLevel\nParent=P\nType=Band\n[B]\nMeasure=AudioLevel\nParent=P\nType=Band\n[C]\nMeasure=AudioLevel\nParent=P\nType=Band\nBandIdx=3\n");
+        let mut p = AudioLevel::new();
+        p.read_options(&OptionReader::new(&s.parser, "P", None));
+        let pd = Arc::new(ParentData::new(p.cfg.clone(), p.params.clone()));
+        let dir = s.env.skins_dir.join("T");
+        publish(&dir, "P", Arc::new(Link { parent: Arc::downgrade(&pd) }));
+        let mk = |sec: &str| {
+            let mut m = AudioLevel::new();
+            m.read_options(&OptionReader::new(&s.parser, sec, None));
+            m
+        };
+        let (mut a, mut b, mut c) = (mk("A"), mk("B"), mk("C"));
+        for m in [&mut a, &mut b, &mut c] {
+            ctx_run(&s, |ctx| m.update(ctx));
+        }
+        assert_eq!((a.query().band_idx, b.query().band_idx, c.query().band_idx), (0, 1, 3));
+        // Update=-1 skins: the parent requests its own update.
+        p.mine = Some(pd.clone());
+        p.push = true;
+        let t = Instant::now();
+        assert_eq!(p.poll_timers(t), ["[!UpdateMeasure \"P\"]"]);
+        assert!(p.poll_timers(t).is_empty());
+        assert!(p.next_wakeup(t).is_some());
     }
 
     #[test]
