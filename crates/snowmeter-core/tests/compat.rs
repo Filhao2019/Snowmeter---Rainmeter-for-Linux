@@ -126,6 +126,7 @@ fn new_native_plugins_count_as_supported() {
     for (i, p) in [
         "WebNowPlaying.dll", "GPMDPPlugin", "EasyBlur", "FrostedGlass.dll", "Chameleon", "SysColor", "MeterialYou", "Process", "UsageMonitor",
         "FolderInfo", "FileView", "ActionTimer", "ConfigActive", "RunCommand", "Mouse",
+        "CoreTemp", "SpeedFanPlugin", "HWiNFO.dll",
     ]
     .iter()
     .enumerate()

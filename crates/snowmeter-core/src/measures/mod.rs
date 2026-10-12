@@ -10,6 +10,7 @@ pub mod cosmetic;
 pub mod disk;
 pub mod fileview;
 pub mod folderinfo;
+pub mod hwmon;
 pub mod ifactions;
 pub mod inputtext;
 pub mod loop_;
@@ -27,6 +28,7 @@ pub mod script;
 pub mod sysinfo;
 pub mod string;
 pub mod sysmon;
+pub mod temps;
 pub mod substitute;
 #[cfg(test)]
 pub(crate) mod testutil;
