@@ -57,6 +57,49 @@ fn routable_argc(name: &str) -> Option<usize> {
     })
 }
 
+/// Bangs the executor implements.
+pub const SUPPORTED_BANGS: &[&str] = &[
+    "refresh", "refreshapp", "redraw", "update", "updatemeasure", "updatemeasuregroup", "updatemeter", "updatemetergroup",
+    "setvariable", "setvariablegroup", "setoption", "setoptiongroup", "writekeyvalue", "delay", "log", "quit",
+    "enablemouseaction", "disablemouseaction", "togglemouseaction", "clearmouseaction", "enablemouseactiongroup",
+    "disablemouseactiongroup", "togglemouseactiongroup", "clearmouseactiongroup",
+    "showmeter", "hidemeter", "togglemeter", "showmetergroup", "hidemetergroup", "togglemetergroup",
+    "enablemeasure", "disablemeasure", "togglemeasure", "enablemeasuregroup", "disablemeasuregroup",
+    "togglemeasuregroup", "pausemeasure", "unpausemeasure", "togglepausemeasure", "pausemeasuregroup",
+    "unpausemeasuregroup", "togglepausemeasuregroup", "commandmeasure", "commandmeasuregroup", "pluginbang",
+    "movemeter", "activateconfig", "deactivateconfig", "toggleconfig", "move", "setwindowposition", "zpos",
+    "changezpos", "draggable", "clickthrough", "settransparency", "show", "showfade", "hide", "hidefade", "toggle",
+    "togglefade",
+];
+
+/// Bangs that are accepted but do nothing on Linux (window-manager features,
+/// dialogs and Windows-only effects).
+pub const IGNORED_BANGS: &[&str] = &[
+    "about", "manage", "debug", "skinmenu", "traymenu", "skincustommenu", "editskin", "resetstats", "lsboxhook",
+    "snapedges", "keeponscreen", "autoselectscreen", "setclip", "setwallpaper", "loadlayout", "showblur", "hideblur",
+    "toggleblur", "addblur", "removeblur", "fadeduration",
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BangSupport {
+    Supported,
+    /// Accepted, no effect on Linux.
+    Ignored,
+    Unknown,
+}
+
+/// Classification of a bang name (without `!`, any case).
+pub fn bang_support(name: &str) -> BangSupport {
+    let n = name.trim().trim_start_matches('!').to_ascii_lowercase();
+    if SUPPORTED_BANGS.contains(&n.as_str()) {
+        BangSupport::Supported
+    } else if IGNORED_BANGS.contains(&n.as_str()) {
+        BangSupport::Ignored
+    } else {
+        BangSupport::Unknown
+    }
+}
+
 /// Maximum nesting of `execute_in` (`!Update` from `OnUpdateAction`, ...).
 const MAX_REENTRY: u8 = 8;
 /// Maximum `execute_in` calls caused by one outermost action (bounds fan-out).

@@ -576,4 +576,7 @@ fn f25_multiple_variants_and_resources_not_a_config() {
     let mut cfgs = r.configs.clone();
     cfgs.sort();
     assert_eq!(cfgs, vec!["illustro\\Clock", "illustro\\Disk"]);
+    assert_eq!(r.compat.len(), 2);
+    assert!(r.compat.iter().all(|c| c.fully_supported));
+    assert!(r.to_string().contains("illustro\\Clock: Fully supported"), "{r}");
 }

@@ -119,6 +119,11 @@ pub fn create_impl(type_name: &str) -> Result<Box<dyn MeterImpl>, String> {
     }
 }
 
+/// True if `Meter=<name>` is a type the factory can create.
+pub fn is_supported_meter(name: &str) -> bool {
+    create_impl(name).is_ok()
+}
+
 /// A meter section: the shared base plus the type-specific part.
 pub struct Meter {
     pub base: MeterBase,

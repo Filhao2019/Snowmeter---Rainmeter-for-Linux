@@ -6,6 +6,7 @@
 //! shapes. Archives are extracted to a staging folder first with zip-slip,
 //! symlink and size protection; nothing is executed.
 
+use crate::compat::{check_config, CompatReport};
 use crate::env::Environment;
 use crate::ini::{write_key_value, IniFile};
 use crate::registry::{ntfs_cmp, SkinRegistry};
@@ -111,6 +112,49 @@ pub struct ImportReport {
     /// `(config, file)` activated by the package's `Load=`.
     pub loaded_skin: Option<(String, String)>,
     pub loaded_layout: Option<String>,
+    /// Compatibility of every installed config.
+    pub compat: Vec<CompatReport>,
+}
+
+impl fmt::Display for ImportReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Imported \"{}\"", self.name)?;
+        if !self.author.is_empty() {
+            write!(f, " by {}", self.author)?;
+        }
+        if !self.version.is_empty() {
+            write!(f, " (version {})", self.version)?;
+        }
+        writeln!(f)?;
+        if !self.installed_roots.is_empty() {
+            writeln!(f, "Skins installed: {}", self.installed_roots.join(", "))?;
+        }
+        if !self.backups.is_empty() {
+            writeln!(f, "Previous versions moved to @Backup: {}", self.backups.join(", "))?;
+        }
+        if !self.layouts_installed.is_empty() {
+            writeln!(f, "Layouts installed: {}", self.layouts_installed.join(", "))?;
+        }
+        if !self.fonts_installed.is_empty() {
+            writeln!(f, "Fonts installed: {}", self.fonts_installed.len())?;
+        }
+        if !self.plugins_skipped.is_empty() {
+            writeln!(f, "Windows plugins not loaded: {}", self.plugins_skipped.join(", "))?;
+        }
+        if let Some((c, file)) = &self.loaded_skin {
+            writeln!(f, "Activated: {c} ({file})")?;
+        }
+        if let Some(l) = &self.loaded_layout {
+            writeln!(f, "Layout applied: {l}")?;
+        }
+        for w in &self.warnings {
+            writeln!(f, "Warning: {w}")?;
+        }
+        for c in &self.compat {
+            writeln!(f, "{c}")?;
+        }
+        Ok(())
+    }
 }
 
 pub fn import_path(env: &Environment, path: &Path) -> Result<ImportReport, ImportError> {
@@ -813,6 +857,7 @@ fn install(
             rep.configs.push(c.name.clone());
         }
     }
+    rep.compat = rep.configs.iter().map(|c| check_config(env, c)).collect();
 
     // --- load action
     if opts.load && !pkg.opts.load.trim().is_empty() && !pkg.opts.load_type.trim().is_empty() {

@@ -102,6 +102,31 @@ pub fn canonical_plugin_name(name: &str) -> Option<&'static str> {
     INTERNAL_NAMES.iter().find(|(alias, _)| *alias == key).map(|(_, canon)| *canon)
 }
 
+/// Names of the plugins Snowmeter implements natively (lowercase canonical).
+pub fn native_plugin_names() -> Vec<&'static str> {
+    NATIVE_PLUGINS.iter().map(|(n, _)| *n).collect()
+}
+
+/// True if the plugin (any alias / `.dll` spelling) has a native implementation.
+pub fn is_native_plugin(name: &str) -> bool {
+    let key = plugin_key(name);
+    let canon = canonical_plugin_name(&key).unwrap_or("");
+    NATIVE_PLUGINS.iter().any(|(n, _)| *n == key || *n == canon)
+}
+
+/// `Measure=` types handled by the factory itself (`Plugin` included).
+pub const BUILTIN_MEASURE_TYPES: [&str; 15] = [
+    "cpu", "physicalmemory", "swapmemory", "memory", "freediskspace", "uptime", "time", "calc", "string", "netin",
+    "netout", "nettotal", "registry", "loop", "plugin",
+];
+
+/// True if `Measure=<name>` is a built-in type or a known plugin alias
+/// (`Measure=NowPlaying` style); the latter may still be a placeholder.
+pub fn is_known_measure_type(name: &str) -> bool {
+    let t = name.trim().to_ascii_lowercase();
+    BUILTIN_MEASURE_TYPES.contains(&t.as_str()) || canonical_plugin_name(&t).is_some()
+}
+
 /// Native implementation of a plugin by name (`.dll` suffix and case ignored).
 pub fn native_plugin(name: &str) -> Option<Box<dyn MeasureImpl>> {
     let key = plugin_key(name);
@@ -168,6 +193,21 @@ mod tests {
         assert_eq!(canonical_plugin_name("Win7AudioPlugin"), Some("audio"));
         assert_eq!(canonical_plugin_name("Drag&Drop.dll"), Some("dragdrop"));
         assert_eq!(canonical_plugin_name("HotKey.dll"), None);
+    }
+
+    #[test]
+    fn builtin_type_list_matches_factory() {
+        let s = skin("[M]\nMeasure=X\n");
+        for t in BUILTIN_MEASURE_TYPES {
+            let opt = OptionReader { parser: &s.parser, section: "M", sv: None };
+            let mut log = Vec::new();
+            assert!(create_measure_impl(t, "M", &opt, &mut log).1, "{t}");
+        }
+        let opt = OptionReader { parser: &s.parser, section: "M", sv: None };
+        assert!(!create_measure_impl("Bogus", "M", &opt, &mut Vec::new()).1);
+        assert!(is_known_measure_type("NowPlaying") && !is_known_measure_type("Bogus"));
+        assert!(is_native_plugin("WebParser.dll") && is_native_plugin("PowerPlugin") && !is_native_plugin("NowPlaying"));
+        assert!(native_plugin_names().contains(&"script"));
     }
 
     #[test]

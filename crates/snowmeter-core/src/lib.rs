@@ -3,6 +3,7 @@
 
 pub mod bangs;
 pub mod color;
+pub mod compat;
 pub mod env;
 pub mod formula;
 pub mod ini;
