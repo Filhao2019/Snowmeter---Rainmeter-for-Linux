@@ -16,6 +16,7 @@ pub mod substitute;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod time;
+pub mod webparser;
 pub mod uptime;
 pub mod cpu;
 

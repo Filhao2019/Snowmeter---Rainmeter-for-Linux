@@ -41,7 +41,9 @@ type Ctor = fn() -> Box<dyn MeasureImpl>;
 /// Native Linux re-implementations of Rainmeter plugins, keyed by lowercase
 /// canonical name. Empty for now; later milestones add SysInfo, RecycleManager,
 /// Power, WebParser and Script here.
-const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::ScriptMeasure::new()))];
+const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::ScriptMeasure::new())),
+    ("webparser", || Box::new(super::webparser::WebParser::new())),
+];
 
 /// Names Rainmeter treats as internal measures / default plugins, with the DLL
 /// file names that redirect to them. (lowercase alias, canonical lowercase name)
