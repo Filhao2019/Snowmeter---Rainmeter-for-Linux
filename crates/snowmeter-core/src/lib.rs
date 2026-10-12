@@ -15,6 +15,7 @@ pub mod measures;
 pub mod meters;
 pub mod render;
 pub mod registry;
+pub mod rmskin;
 pub mod settings;
 pub mod skin;
 
