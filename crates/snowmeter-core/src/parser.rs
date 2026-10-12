@@ -429,6 +429,13 @@ impl ConfigParser {
         self.read_substituted(section, key, sv).unwrap_or_else(|| default.to_string())
     }
 
+    /// Raw option text with style fallback but no variable or section
+    /// substitution (Rainmeter `ReadString(..., false)`), used for actions
+    /// that are expanded when they execute.
+    pub fn read_string_raw(&self, section: &str, key: &str, default: &str) -> String {
+        self.raw_with_styles(section, key, None).cloned().unwrap_or_else(|| default.to_string())
+    }
+
     pub fn read_float(&self, section: &str, key: &str, default: f64, sv: Option<&dyn SectionValues>) -> f64 {
         match self.read_substituted(section, key, sv) {
             None => default,
@@ -459,5 +466,105 @@ impl ConfigParser {
     pub fn parse_formula(&self, s: &str, sv: Option<&dyn SectionValues>) -> Option<f64> {
         let text = self.substitute(s, "", sv);
         self.eval(&text, sv).ok()
+    }
+}
+
+/// Shortcut used by measures and meters to read options of one section.
+pub struct OptionReader<'a> {
+    pub parser: &'a ConfigParser,
+    pub section: &'a str,
+    pub sv: Option<&'a dyn SectionValues>,
+}
+
+impl<'a> OptionReader<'a> {
+    pub fn new(parser: &'a ConfigParser, section: &'a str, sv: Option<&'a dyn SectionValues>) -> Self {
+        OptionReader { parser, section, sv }
+    }
+    /// Same reader with `[Measure]` references left unexpanded (for actions).
+    pub fn without_sections(&self) -> OptionReader<'a> {
+        OptionReader { parser: self.parser, section: self.section, sv: None }
+    }
+    pub fn string(&self, key: &str, default: &str) -> String {
+        self.parser.read_string(self.section, key, default, self.sv)
+    }
+    /// Action text, read raw: `#Var#` and `[Measure]` are expanded when it executes.
+    pub fn action(&self, key: &str) -> String {
+        self.parser.read_string_raw(self.section, key, "")
+    }
+    pub fn float(&self, key: &str, default: f64) -> f64 {
+        self.parser.read_float(self.section, key, default, self.sv)
+    }
+    pub fn int(&self, key: &str, default: i64) -> i64 {
+        self.parser.read_int(self.section, key, default, self.sv)
+    }
+    /// Rainmeter `ReadBool`: an integer option, non-zero is true.
+    pub fn bool(&self, key: &str, default: bool) -> bool {
+        self.parser.read_int(self.section, key, i64::from(default), self.sv) != 0
+    }
+    pub fn color(&self, key: &str, default: Color) -> Color {
+        self.parser.read_color(self.section, key, default, self.sv)
+    }
+    pub fn has(&self, key: &str) -> bool {
+        self.parser.has_key(self.section, key)
+    }
+}
+
+#[cfg(test)]
+mod option_reader_tests {
+    use super::*;
+
+    fn parser(ini: &str) -> (tempfile::TempDir, ConfigParser) {
+        let tmp = tempfile::tempdir().unwrap();
+        let env = Environment::with_root(tmp.path());
+        let dir = env.skins_dir.join("T");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Main.ini"), ini).unwrap();
+        let id = SkinIdentity {
+            config: "T".into(),
+            root_config: "T".into(),
+            file: "Main.ini".into(),
+            ini_path: dir.join("Main.ini"),
+        };
+        let p = ConfigParser::load(&env, &id).unwrap();
+        (tmp, p)
+    }
+
+    #[test]
+    fn reads_typed_options_with_defaults() {
+        let (_t, p) = parser(
+            "[Variables]\nV=7\n[M]\nMeasure=Calc\nS=hello #V#\nF=(1+2)\nI=12\nB=1\nB0=0\nC=255,0,0\nEmpty=\n",
+        );
+        let o = OptionReader { parser: &p, section: "M", sv: None };
+        assert_eq!(o.string("S", ""), "hello 7");
+        assert_eq!(o.string("Missing", "dflt"), "dflt");
+        assert_eq!(o.float("F", 0.0), 3.0);
+        assert_eq!(o.float("Missing", 2.5), 2.5);
+        assert_eq!(o.int("I", 0), 12);
+        assert_eq!(o.int("Missing", -4), -4);
+        assert!(o.bool("B", false));
+        assert!(!o.bool("B0", true));
+        assert!(o.bool("Missing", true));
+        assert_eq!(o.color("C", Color::default()), Color { r: 255, g: 0, b: 0, a: 255 });
+        assert_eq!(o.action("S"), "hello #V#");
+        assert!(o.has("empty"));
+        assert!(!o.has("Missing"));
+    }
+
+    #[test]
+    fn sections_are_expanded_only_with_sv() {
+        struct Sv;
+        impl SectionValues for Sv {
+            fn section_variable(&self, name: &str, _p: Option<&str>) -> Option<String> {
+                (name.eq_ignore_ascii_case("Other")).then(|| "42".to_string())
+            }
+            fn measure_value(&self, _n: &str) -> Option<f64> {
+                None
+            }
+        }
+        let (_t, p) = parser("[M]\nText=[&Other]\n");
+        let sv = Sv;
+        let with = OptionReader::new(&p, "M", Some(&sv));
+        assert_eq!(with.string("Text", ""), "42");
+        assert_eq!(with.without_sections().string("Text", ""), "[&Other]");
     }
 }

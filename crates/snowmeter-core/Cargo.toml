@@ -6,6 +6,9 @@ license.workspace = true
 description = "Snowmeter engine core: Rainmeter-compatible INI, variables, formulas, bangs"
 
 [dependencies]
+chrono = { version = "0.4", default-features = false }
+libc = "0.2"
+pcre2 = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
