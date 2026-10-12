@@ -9,8 +9,11 @@ pub mod loop_;
 pub mod memory;
 pub mod net;
 pub mod plugin;
+pub mod power;
+pub mod recycle;
 pub mod registry;
 pub mod script;
+pub mod sysinfo;
 pub mod string;
 pub mod substitute;
 #[cfg(test)]

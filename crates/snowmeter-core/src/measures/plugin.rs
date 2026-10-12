@@ -43,6 +43,9 @@ type Ctor = fn() -> Box<dyn MeasureImpl>;
 /// Power, WebParser and Script here.
 const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::ScriptMeasure::new())),
     ("webparser", || Box::new(super::webparser::WebParser::new())),
+    ("sysinfo", || Box::new(super::sysinfo::SysInfo::new())),
+    ("recyclemanager", || Box::new(super::recycle::RecycleMeasure::new())),
+    ("power", || Box::new(super::power::PowerMeasure::new())),
 ];
 
 /// Names Rainmeter treats as internal measures / default plugins, with the DLL
@@ -192,10 +195,10 @@ mod tests {
 
     #[test]
     fn known_but_unimplemented_plugin_names_are_placeholders() {
-        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=SysInfo\n");
+        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=NowPlaying\n");
         let m = Measure::new("M", "Plugin", &OptionReader { parser: &s.parser, section: "M", sv: None });
         assert!(m.known_type);
-        let mut n = Measure::new("N", "SysInfo", &OptionReader { parser: &s.parser, section: "N", sv: None });
+        let mut n = Measure::new("N", "NowPlaying", &OptionReader { parser: &s.parser, section: "N", sv: None });
         assert!(n.known_type);
         assert!(n.take_log()[0].contains("not supported on Linux"));
     }

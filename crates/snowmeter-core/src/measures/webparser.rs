@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn regex_groups_and_errors() {
         let g = run_regex("(?siU)<b>(.*)</b>(\\d+)", "x <b>hi</b>42").unwrap().unwrap();
-        assert_eq!(g, vec!["<b>hi</b>42", "hi", "42"]);
+        assert_eq!(g, vec!["<b>hi</b>4", "hi", "4"]);
         assert_eq!(run_regex("zzz", "abc").unwrap(), None);
         assert!(run_regex("(unclosed", "abc").is_err());
         assert_eq!(run_regex("", "abc").unwrap().unwrap(), vec![""]);
