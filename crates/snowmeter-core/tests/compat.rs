@@ -125,7 +125,7 @@ fn new_native_plugins_count_as_supported() {
     let mut ini = String::from("[Rainmeter]\n");
     for (i, p) in [
         "WebNowPlaying.dll", "GPMDPPlugin", "EasyBlur", "FrostedGlass.dll", "Chameleon", "SysColor", "MeterialYou", "Process", "UsageMonitor",
-        "FolderInfo", "FileView", "ActionTimer", "ConfigActive",
+        "FolderInfo", "FileView", "ActionTimer", "ConfigActive", "RunCommand", "Mouse",
     ]
     .iter()
     .enumerate()

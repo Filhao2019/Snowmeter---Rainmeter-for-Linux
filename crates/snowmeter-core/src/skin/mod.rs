@@ -125,6 +125,8 @@ pub struct Skin {
     pub(crate) geom: Vec<Geom>,
     pub(crate) over: Vec<bool>,
     pub(crate) skin_over: bool,
+    /// Screen position of the window, set by the application (for `RelativeToSkin=0`).
+    pub(crate) screen_pos: (f64, f64),
     size: (i32, i32),
     counter: u64,
     requests: Vec<AppRequest>,
@@ -195,6 +197,7 @@ impl Skin {
             geom: Vec::new(),
             over: Vec::new(),
             skin_over: false,
+            screen_pos: (0.0, 0.0),
             size: (0, 0),
             counter: 0,
             requests: Vec::new(),
@@ -594,6 +597,11 @@ impl Skin {
             .iter()
             .map(|m| (m.base.name.clone(), [m.base.rect_x, m.base.rect_y, m.base.w, m.base.h]))
             .collect();
+    }
+
+    /// The application reports where the window is on screen.
+    pub fn set_screen_position(&mut self, x: f64, y: f64) {
+        self.screen_pos = (x, y);
     }
 
     /// Window size from the meters (meters.md 1.11).

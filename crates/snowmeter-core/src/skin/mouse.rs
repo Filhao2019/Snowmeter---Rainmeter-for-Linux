@@ -205,6 +205,7 @@ impl Skin {
     /// Dispatch a mouse event. Returns true when the event was consumed (an
     /// action exists at the point), which also suppresses the context menu.
     pub fn mouse(&mut self, ev: MouseEvent) -> bool {
+        self.mouse_measures(&ev);
         match ev {
             MouseEvent::Leave => {
                 self.update_over(None);
@@ -243,6 +244,24 @@ impl Skin {
                     handled |= self.click(if dx > 0 { ActionKind::ScrollRight } else { ActionKind::ScrollLeft }, x, y);
                 }
                 handled
+            }
+        }
+    }
+
+    /// Feed the pointer event to Mouse plugin measures and run what they return.
+    fn mouse_measures(&mut self, ev: &MouseEvent) {
+        let (w, h) = self.size();
+        let (size, pos) = ((w as f64, h as f64), self.screen_pos);
+        for i in 0..self.measures.len() {
+            let acts = match self.measures[i].m.try_borrow_mut() {
+                Ok(mut m) => m.pointer_event(ev, size, pos),
+                Err(_) => continue,
+            };
+            if !acts.is_empty() {
+                let name = self.measures[i].name.clone();
+                for a in acts {
+                    self.execute_in(&a, Some(&name));
+                }
             }
         }
     }

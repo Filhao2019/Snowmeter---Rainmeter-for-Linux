@@ -14,6 +14,7 @@ pub mod ifactions;
 pub mod inputtext;
 pub mod loop_;
 pub mod memory;
+pub mod mouse;
 pub mod net;
 pub mod nowplaying;
 pub mod plugin;
@@ -21,6 +22,7 @@ pub mod power;
 pub mod process;
 pub mod recycle;
 pub mod registry;
+pub mod runcommand;
 pub mod script;
 pub mod sysinfo;
 pub mod string;
@@ -103,6 +105,11 @@ pub trait MeasureImpl {
     }
     /// Text-entry requests queued by `!CommandMeasure` (InputText).
     fn take_input_requests(&mut self) -> Vec<inputtext::InputTextSpec> {
+        Vec::new()
+    }
+    /// A mouse event over the skin window; returns actions to run (Mouse plugin).
+    /// `size` is the skin size and `pos` its screen position.
+    fn pointer_event(&mut self, _ev: &crate::skin::MouseEvent, _size: (f64, f64), _pos: (f64, f64)) -> Vec<String> {
         Vec::new()
     }
     /// Timer-driven actions that are due at `now` (ActionTimer).
@@ -413,6 +420,14 @@ impl Measure {
         let mut v = std::mem::take(&mut self.pending);
         v.extend(self.imp.take_actions());
         v
+    }
+
+    /// Mouse plugin hook; other measures ignore pointer events.
+    pub fn pointer_event(&mut self, ev: &crate::skin::MouseEvent, size: (f64, f64), pos: (f64, f64)) -> Vec<String> {
+        if self.disabled || self.paused {
+            return Vec::new();
+        }
+        self.imp.pointer_event(ev, size, pos)
     }
 
     /// Actions due from running timers (ActionTimer); empty for other measures.

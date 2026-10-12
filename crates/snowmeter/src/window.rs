@@ -438,7 +438,12 @@ impl SkinWindow {
     }
 
     fn send_mouse(self: &Rc<Self>, ev: MouseEvent) -> bool {
-        let handled = self.skin.borrow_mut().mouse(ev);
+        let pos = self.st.borrow().pos;
+        let handled = {
+            let mut skin = self.skin.borrow_mut();
+            skin.set_screen_position(pos.0 as f64, pos.1 as f64);
+            skin.mouse(ev)
+        };
         self.after_activity();
         handled
     }
