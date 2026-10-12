@@ -26,10 +26,10 @@ Status is how well the skin works in Snowmeter today: good means the main config
 | Persona-5-Calendar | Mive82 | WTFPL (code), artwork belongs to Atlus | download from author | good | Downloaded from the author because of the third-party artwork. Some Calc formulas with nested ternaries log warnings. |
 | NThing-UI | Runixe786 | none stated (all rights reserved) | download from author | good | Downloaded from the author. |
 | BigSur | fediaFedia | none stated (all rights reserved) | download from author | good | Downloaded from the author. The blurred sidebar background (EasyBlur plugin) is blank. |
-| Enigma | Kaelri | CC BY-NC-SA 3.0 | bundled | partial | The calendar needs Lua 5.1 compatibility not yet implemented. a TimeStampFormat warning appears. RainFile and RainRGB helpers (Windows executables) were removed. |
-| ModernGadgets | raiguard | CC BY-NC-SA 3.0 (skin), MIT (code) | bundled | partial | The calendar needs Lua compatibility not yet implemented. Needs plugins RunCommand, Process, Mouse, ActionTimer, UsageMonitor and CoreTemp, which are missing or unsupported. |
-| SystemFetch | Meti0X7CB | GPL-3.0 | bundled | partial | Frosted glass backgrounds are not drawn. CPU and GPU values read 0. |
-| Cleartext | redsaph | CC0 1.0 | bundled | partial | The music part needs the WebNowPlaying/GPMDP plugins. the settings script uses dofile. |
+| Enigma | Kaelri | CC BY-NC-SA 3.0 | bundled | good | Sidebar, clock, calendar, system, network and music work; weather needs network; CoreTemp/WifiStatus parts show placeholders. |
+| ModernGadgets | raiguard | CC BY-NC-SA 3.0 (skin), MIT (code) | bundled | good | CPU, RAM, network, disks, calendar and chronometer work; temperature/fan readings (CoreTemp, SpeedFan, HWiNFO) are placeholders. |
+| SystemFetch | Meti0X7CB | GPL-3.0 | bundled | good | System, clock, calendar and hardware monitor work (the FrostedGlass blur is ignored); GPU readings are placeholders. |
+| Cleartext | redsaph | CC0 1.0 | bundled | good | Now-playing widget for any MPRIS player (Spotify, browsers, VLC...) through Snowmeter's WebNowPlaying emulation. |
 | rainmeter-todo | alperenozlu | GPL-3.0 | bundled | partial | Clicking and text input are untested. |
 | SysDash | marcopixel | MIT (fonts Uni Sans and UniNeue have no license) | download from author | partial | Downloaded from the author because its fonts are unlicensed. InlineSetting formulas are not evaluated. Yahoo weather is dead. |
 | Monterey | creewick | CC BY-NC-SA 4.0 (bundles Apple SF Pro, not covered) | download from author | partial | Downloaded from the author because of the bundled Apple font. The analog clock shows only the second hand. FrostedGlass and Chameleon plugins are missing. |
