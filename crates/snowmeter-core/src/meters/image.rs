@@ -3,7 +3,7 @@
 use super::imgslot::with_default_extension;
 use super::{MeterBase, MeterImpl, MeterInputs};
 use crate::parser::OptionReader;
-use crate::render::image::{draw_image, process, to_surface, DrawParams, ImageOptions};
+use crate::render::image::{draw_image, process, stamp_of, to_surface, DrawParams, ImageOptions};
 use crate::render::Resources;
 use std::path::PathBuf;
 
@@ -88,22 +88,29 @@ impl MeterImpl for ImageMeter {
         }
         let full = with_default_extension(&format!("{}{}", self.image_path, name.trim()));
         let mut log = Vec::new();
+        // The file's stamp decides whether anything changed, so an image that is
+        // already on screen is not decoded (or kept decoded) again.
         let cached = self.resolved.as_ref().filter(|(k, _)| *k == full).map(|(_, p)| p.clone());
-        let (path, raw) = match cached.and_then(|p| m.res.images.load(&p, &mut log).map(|r| (p, r))) {
-            Some((p, r)) => (p, Some(r)),
+        let (path, stamp) = match cached.and_then(|p| stamp_of(&p).map(|st| (p, st))) {
+            Some((p, st)) => (p, Some(st)),
             None => {
                 // First use or a miss: resolve against the disk (case-insensitive).
                 let path: PathBuf = crate::paths::resolve_path(&m.res.skin_dir, &full);
-                let raw = m.res.images.load(&path, &mut log);
-                self.resolved = raw.as_ref().map(|_| (full.clone(), path.clone()));
-                (path, raw)
+                let st = stamp_of(&path);
+                (path, st)
             }
         };
+        let key = stamp.map(|st| format!("{}|{:?}|{:?}", path.display(), self.options, st));
+        if key.is_some() && key == self.loaded_key && self.surface.is_some() {
+            return false;
+        }
+        let raw = m.res.images.load(&path, &mut log);
+        self.resolved = raw.as_ref().map(|_| (full.clone(), path.clone()));
         for l in log {
             m.log(l);
         }
-        let key = raw.as_ref().map(|r| format!("{}|{:?}|{}x{}|{:p}", path.display(), self.options, r.w, r.h, std::rc::Rc::as_ptr(r)));
-        if key == self.loaded_key && self.surface.is_some() {
+        let key = if raw.is_some() { key } else { None };
+        if key.is_none() && self.loaded_key.is_none() && self.surface.is_none() {
             return false;
         }
         self.loaded_key = key;

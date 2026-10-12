@@ -49,3 +49,7 @@ Thanks to all skin authors: ApexXx-SenSei (Mond), the Rainmeter team (illustro),
 ## Licensing
 
 Snowmeter itself is GPL-2.0. The skins in this folder are not: every bundled skin keeps its own license, stored in its folder as `LICENSE`, with the exact upstream ref and the list of removed files in `SOURCE.md`. Skins under CC BY-NC-SA terms (Gadgets, Wisp, Enigma, ModernGadgets) stay non-commercial and share-alike, and Mond (CC BY-NC-ND) is shipped as the author's unmodified package. Windows-only plugins, executables and proprietary fonts were removed from bundled copies. Skins without any license (all rights reserved), or that carry third-party art or fonts, are not redistributed here: `snowmeter install` downloads them from their authors at the pinned release or commit.
+
+To keep downloads small, the bundled PNGs are losslessly recompressed (oxipng)
+and Windows-only files are left out: the NetMonitor `.msi` installers
+(Gadgets, ModernGadgets) and Wisp's Photoshop `.psd` sources.

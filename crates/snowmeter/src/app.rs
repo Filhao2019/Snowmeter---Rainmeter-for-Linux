@@ -616,11 +616,34 @@ fn tri(value: i32, current: bool) -> bool {
 }
 
 /// Start the application. Returns the process exit code.
+/// Keep the resident footprint of a long-running background process small.
+/// Must run before GTK starts and before any thread is spawned.
+fn limit_memory() {
+    // Skins are drawn with Cairo into DrawingAreas, so GTK's GL/Vulkan
+    // renderer only adds GPU driver state per window. Users can still override.
+    if std::env::var_os("GSK_RENDERER").is_none() {
+        std::env::set_var("GSK_RENDERER", "cairo");
+    }
+    // glibc gives each thread its own malloc arena (up to 8 per core) and
+    // returns little of it to the system; two arenas are plenty for us.
+    #[cfg(target_env = "gnu")]
+    unsafe {
+        libc::mallopt(libc::M_ARENA_MAX, 2);
+    }
+}
+
 pub fn run() -> i32 {
+    limit_memory();
     if let Err(e) = gtk4::init() {
         eprintln!("snowmeter: cannot open a display: {e}");
         return 1;
     }
+    // Hand memory freed after skin loads/refreshes back to the system.
+    #[cfg(target_env = "gnu")]
+    glib::timeout_add_seconds_local(60, || {
+        unsafe { libc::malloc_trim(0) };
+        glib::ControlFlow::Continue
+    });
     let sock = ipc::socket_path();
     let listener = match ipc::bind(&sock) {
         Ok(ipc::Bind::AlreadyRunning) => {

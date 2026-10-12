@@ -33,18 +33,30 @@ impl RawImage {
 struct Entry {
     stamp: Option<(SystemTime, u64)>,
     img: Option<Rc<RawImage>>,
+    last_use: u64,
 }
+
+/// Decoded pixels kept per skin for re-use (animation frames, shared files).
+/// Meters keep their own Cairo surface, so this is only a decode cache and
+/// is trimmed least-recently-used first once it grows past the budget.
+const CACHE_BUDGET: usize = 8 << 20;
 
 /// Decoded images by resolved path; reloads when size or mtime change and
 /// reports a failing path only once.
 #[derive(Default)]
 pub struct ImageCache {
     map: RefCell<HashMap<PathBuf, Entry>>,
+    tick: std::cell::Cell<u64>,
 }
 
-fn stamp_of(path: &Path) -> Option<(SystemTime, u64)> {
+/// File modification time and size, used to notice a changed image.
+pub fn stamp_of(path: &Path) -> Option<(SystemTime, u64)> {
     let md = std::fs::metadata(path).ok()?;
     Some((md.modified().ok()?, md.len()))
+}
+
+fn bytes_of(e: &Entry) -> usize {
+    e.img.as_ref().map_or(0, |i| i.rgba.len())
 }
 
 impl ImageCache {
@@ -54,15 +66,18 @@ impl ImageCache {
 
     pub fn load(&self, path: &Path, log: &mut Vec<String>) -> Option<Rc<RawImage>> {
         let stamp = stamp_of(path);
+        let tick = self.tick.get() + 1;
+        self.tick.set(tick);
         let mut map = self.map.borrow_mut();
-        if let Some(e) = map.get(path) {
+        if let Some(e) = map.get_mut(path) {
             if e.stamp == stamp {
+                e.last_use = tick;
                 return e.img.clone();
             }
         }
         let img = match image::open(path) {
             Ok(d) => {
-                let rgba = d.to_rgba8();
+                let rgba = d.into_rgba8();
                 let (w, h) = rgba.dimensions();
                 Some(Rc::new(RawImage { w: w as i32, h: h as i32, rgba: rgba.into_raw() }))
             }
@@ -74,8 +89,30 @@ impl ImageCache {
                 None
             }
         };
-        map.insert(path.to_path_buf(), Entry { stamp, img: img.clone() });
+        map.insert(path.to_path_buf(), Entry { stamp, img: img.clone(), last_use: tick });
+        Self::trim(&mut map);
         img
+    }
+
+    /// Drop the least recently used pixels until the cache fits its budget.
+    /// Failed paths are kept (they hold no pixels) so they are logged once.
+    fn trim(map: &mut HashMap<PathBuf, Entry>) {
+        let mut total: usize = map.values().map(bytes_of).sum();
+        if total <= CACHE_BUDGET {
+            return;
+        }
+        let mut by_age: Vec<(u64, PathBuf)> =
+            map.iter().filter(|(_, e)| e.img.is_some()).map(|(p, e)| (e.last_use, p.clone())).collect();
+        by_age.sort_unstable();
+        for (_, p) in by_age {
+            if total <= CACHE_BUDGET {
+                break;
+            }
+            if let Some(e) = map.remove(&p) {
+                total -= bytes_of(&e);
+            }
+        }
+        map.shrink_to_fit();
     }
 }
 
