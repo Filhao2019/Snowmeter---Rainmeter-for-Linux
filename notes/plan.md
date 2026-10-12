@@ -6,7 +6,7 @@
 
 **Architecture:** Cargo workspace. `crates/snowmeter-core` = engine with no GTK (INI/ConfigParser, variables, formulas, bangs, measures, meters, Cairo/Pango rendering, importer, compat checker, headless PNG renderer). `crates/snowmeter` = GTK4 app (X11 desktop-type windows, input, context menu, tray, IPC, CLI). See `notes/architecture.md`.
 
-**Tech stack:** Rust 1.99 (`~/.cargo/bin`), gtk4 0.11 (`v4_14`), gdk4-x11 0.11 (`xlib`), x11 2.21, cairo-rs/pango/pangocairo 0.22, image, mlua 0.12 (`luajit`,`vendored`), pcre2 0.2, ureq 3, zip (deflate only), chrono, ksni 0.3, clap 4, log + env_logger, libc.
+**Tech stack:** Rust 1.99 (`~/.cargo/bin`), gtk4 0.11 (`v4_14`), gdk4-x11 0.11 (`xlib`), x11 2.21, cairo-rs/pango/pangocairo 0.22, image, mlua 0.12 (`lua51`,`vendored`), pcre2 0.2, ureq 3, zip (deflate only), chrono, ksni 0.3, clap 4, log + env_logger, libc.
 
 **Spec:** the user's task prompt (summarised in Global Constraints) + research notes: `notes/skin-format.md`, `notes/measures.md`, `notes/meters.md`, `notes/rmskin-format.md`, `notes/sample-skins.md`, `notes/binary-evidence.md`. Rainmeter source in `/home/bernardo/linux-rainmeter/rainmeter-src` is the source of truth when a note is silent.
 
@@ -19,7 +19,7 @@
 - Skins dir `~/.config/snowmeter/skins/` (same layout as Rainmeter `Skins\`); settings `~/.config/snowmeter/snowmeter.ini`. Every path in core is overridable (env `SNOWMETER_CONFIG_DIR`) so tests never touch the real home.
 - Case-insensitive INI section/key names; config names use backslash like Rainmeter (`illustro\Clock`).
 - TDD (test first, see it fail, then implement) for: INI parser, variables, @Include, formulas, Time format codes, `.rmskin` importer.
-- Measures required: Time (all codes), CPU, PhysicalMemory/Memory/SwapMemory, FreeDiskSpace, Uptime, Calc, String, NetIn/NetOut/NetTotal, Registry (stub), Script (Lua via mlua LuaJIT), WebParser (HTTP fetch). Meters required: String (fonts, colors, align, InlineSetting basics, StringCase), Image (scaling, tint), Bar, Line, Roundline, Shape (Rectangle, Ellipse, Line, Path basics), Rotator, Button.
+- Measures required: Time (all codes), CPU, PhysicalMemory/Memory/SwapMemory, FreeDiskSpace, Uptime, Calc, String, NetIn/NetOut/NetTotal, Registry (stub), Script (Lua via mlua lua51), WebParser (HTTP fetch). Meters required: String (fonts, colors, align, InlineSetting basics, StringCase), Image (scaling, tint), Bar, Line, Roundline, Shape (Rectangle, Ellipse, Line, Path basics), Rotator, Button.
 - Bangs required: !Refresh, !SetVariable, !ToggleMeter, !ShowMeter, !HideMeter, !ActivateConfig, plus opening URLs/files; everything in `skin-format.md` marked must-have.
 - Windows `.dll` plugins: placeholder measure + one log line, never crash.
 - Match **stock Rainmeter 4.5.27** behaviour (the installed DLL). Items tagged **(fork)** in the notes are optional/lowest priority.
@@ -199,7 +199,7 @@ pub fn render_skin_png(env: &Environment, config: &str, file: Option<&str>, tick
 
 - [ ] Bar, Line, Roundline, Rotator, Button, Histogram per `meters.md` (exact geometry; unit tests with the note's vectors, e.g. Roundline angles, Line history).
 - [ ] Shape: Rectangle (+radii), Ellipse, Line, Arc, Curve, Path (+ `PathN` with LineTo/ArcTo/CurveTo/ClosePath), Combine (Union at least), modifiers Fill Color, Fill LinearGradient/RadialGradient, StrokeWidth, Stroke Color, StrokeLineJoin/Caps, StrokeDashes, Rotate, Scale, Skew, Offset, Extend.
-- [ ] Script measure: mlua LuaJIT; ScriptFile, `Initialize()`/`Update()` (return value → number or string), `SKIN:GetVariable/Bang/GetMeasure/GetMeter/MakePathAbsolute/ParseFormula/ReplaceVariables/GetX/GetY/GetW/GetH`, `SELF:GetOption/GetNumberOption`, measure objects `GetValue/GetStringValue/GetRelativeValue/GetMinValue/GetMaxValue/GetName/GetOption/GetNumberOption`, meter objects `GetX/GetY/GetW/GetH/SetX/SetY/SetW/SetH/Show/Hide/GetName/GetOption`, `print` → log, `!CommandMeasure` → run the code string. Errors logged, never crash.
+- [ ] Script measure: mlua lua51; ScriptFile, `Initialize()`/`Update()` (return value → number or string), `SKIN:GetVariable/Bang/GetMeasure/GetMeter/MakePathAbsolute/ParseFormula/ReplaceVariables/GetX/GetY/GetW/GetH`, `SELF:GetOption/GetNumberOption`, measure objects `GetValue/GetStringValue/GetRelativeValue/GetMinValue/GetMaxValue/GetName/GetOption/GetNumberOption`, meter objects `GetX/GetY/GetW/GetH/SetX/SetY/SetW/SetH/Show/Hide/GetName/GetOption`, `print` → log, `!CommandMeasure` → run the code string. Errors logged, never crash.
 - [ ] WebParser: worker thread with ureq (rustls), Url, RegExp (pcre2), StringIndex, child measures `Url=[Parent]`, UpdateRate, FinishAction, OnConnectErrorAction, Debug, DecodeCharacterReference, Header/UserAgent, Download (to a cache dir). A local test HTTP server (std `TcpListener` thread) for the test.
 - [ ] Native plugin emulations for the plugins illustro and common skins use (see `sample-skins.md`): SysInfo (SysInfoType COMPUTER_NAME, USER_NAME, OS_VERSION, IP_ADDRESS, ADAPTER_DESCRIPTION, NUM_MONITORS, …), RecycleManager (Count/Size from `~/.local/share/Trash`, !CommandMeasure OpenBin/EmptyBin), PowerPlugin (`/sys/class/power_supply`). Everything else stays a placeholder.
 - [ ] Tests green, zero warnings; commit; push.

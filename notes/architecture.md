@@ -49,7 +49,7 @@ snowmeter/                      (git repo, GPL-2.0)
           mod.rs                Measure trait, MeasureBase (Min/Max, Invert, Average, Substitute, IfActions…), factory
           ifactions.rs  substitute.rs
           time.rs cpu.rs memory.rs disk.rs uptime.rs calc.rs string.rs net.rs
-          registry.rs (stub) script.rs (LuaJIT via mlua) webparser.rs plugin.rs (placeholder + native emulations)
+          registry.rs (stub) script.rs (Lua 5.1 via mlua) webparser.rs plugin.rs (placeholder + native emulations)
           sysinfo.rs recycle.rs power.rs …   native replacements for common plugins
         meters/
           mod.rs                Meter trait, MeterBase (X/Y/W/H, relative positioning, SolidColor, mouse), factory
@@ -134,8 +134,8 @@ Rainmeter's order (see `skin-format.md` §Update loop):
 
 Background work (WebParser HTTP, ping) runs on worker threads and publishes
 results through `Arc<Mutex<…>>`; measures pick them up on their next update and
-then fire FinishAction. Lua runs on the main thread (LuaJIT via `mlua`, vendored —
-the same Lua 5.1/LuaJIT runtime Rainmeter embeds, so `bit.*`, `unpack`, etc. work).
+then fire FinishAction. Lua runs on the main thread (Lua 5.1.5 via `mlua`, vendored —
+the same Lua 5.1.5 runtime stock Rainmeter 4.5 embeds, with LUA_COMPAT_VARARG so the implicit `arg` works; no `bit`).
 
 ## 5. Rendering
 
