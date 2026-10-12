@@ -340,7 +340,11 @@ impl MeasureImpl for TimeMeasure {
             match parse_timestamp(&ts, &ts_fmt) {
                 Some(t) => Stamp::Fixed(t),
                 None => {
-                    self.log.push(format!("Invalid TimeStampFormat: {ts_fmt}"));
+                    // Stock logs here for empty input too; a timestamp that has not
+                    // arrived yet (WebParser still loading) is not worth a warning.
+                    if !ts.trim().is_empty() {
+                        self.log.push(format!("Invalid TimeStampFormat: {ts_fmt}"));
+                    }
                     Stamp::Fixed(0.0)
                 }
             }
@@ -480,6 +484,15 @@ mod tests {
         t.read_options(&OptionReader { parser: &s.parser, section: "M", sv: None });
         assert_eq!(ctx_run(&s, |c| t.update(c)), 0.0);
         assert!(t.take_log()[0].contains("Invalid TimeStampFormat"));
+    }
+
+    #[test]
+    fn empty_timestamp_with_format_is_silent_zero() {
+        let s = skin("[M]\nMeasure=Time\nTimeStamp=\nTimeStampFormat=%Y-%m-%dT%H:%M:%S\n");
+        let mut t = TimeMeasure::new();
+        t.read_options(&OptionReader { parser: &s.parser, section: "M", sv: None });
+        assert_eq!(ctx_run(&s, |c| t.update(c)), 0.0);
+        assert!(t.take_log().is_empty());
     }
 
     // ---- synthetic US Pacific zone for 2024 ----

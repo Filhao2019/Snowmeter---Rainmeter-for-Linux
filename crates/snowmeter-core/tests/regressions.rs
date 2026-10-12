@@ -411,3 +411,12 @@ fn time_format_hash_flags_survive_variable_substitution() {
     assert!(!t.contains("BAD") && t.contains(':') && !t.starts_with('0') && t.contains(", "), "{t}");
     assert!(t.contains('M'), "{t}"); // AM/PM
 }
+
+#[test]
+fn time_stamp_format_literal_t_and_trailing_offset() {
+    use snowmeter_core::measures::time::parse_timestamp;
+    let a = parse_timestamp("2026-10-12T07:30:00", "%Y-%m-%dT%H:%M:%S");
+    assert!(a.is_some());
+    // get_time stops at the end of the format; the weather.com offset is ignored.
+    assert_eq!(parse_timestamp("2026-10-12T07:30:00-0400", "%Y-%m-%dT%H:%M:%S"), a);
+}
