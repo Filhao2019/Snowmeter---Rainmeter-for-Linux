@@ -496,6 +496,35 @@ fn looks_like_skin_root(dir: &Path) -> bool {
     find_ci(dir, "@Resources").map(|p| p.is_dir()).unwrap_or(false) || has_ini(dir, 0)
 }
 
+fn has_resources(dir: &Path) -> bool {
+    find_ci(dir, "@Resources").is_some_and(|p| p.is_dir())
+}
+
+/// A folder that is not itself a skin root (no `@Resources`, no `.ini` of its
+/// own) but holds skin roots one or two levels down, like `<repo>/Skins/Enigma`.
+/// Returns those roots (all siblings that look like one) when at least one has
+/// an `@Resources` folder.
+fn nested_skin_roots(dir: &Path) -> Vec<(String, PathBuf)> {
+    let own_ini = children(dir).iter().any(|c| !c.is_dir && has_ext(&c.name, &["ini"]));
+    if has_resources(dir) || own_ini {
+        return Vec::new();
+    }
+    let level1: Vec<Child> = children(dir).into_iter().filter(|c| c.is_dir).collect();
+    let pick = |cands: Vec<Child>| -> Vec<(String, PathBuf)> {
+        if cands.iter().any(|c| has_resources(&c.path)) {
+            cands.into_iter().filter(|c| looks_like_skin_root(&c.path)).map(|c| (c.name, c.path)).collect()
+        } else {
+            Vec::new()
+        }
+    };
+    let r = pick(level1.iter().map(|c| Child { name: c.name.clone(), path: c.path.clone(), is_dir: true }).collect());
+    if !r.is_empty() {
+        return r;
+    }
+    let level2: Vec<Child> = level1.iter().flat_map(|c| children(&c.path)).filter(|c| c.is_dir).collect();
+    pick(level2)
+}
+
 fn find_file_depth(dir: &Path, name: &str, depth: usize) -> Option<PathBuf> {
     for c in children(dir) {
         if !c.is_dir && c.name.eq_ignore_ascii_case(name) {
@@ -572,6 +601,14 @@ fn resolve_package(
         collect_components(&t, &skins, &mut pkg, warnings);
         if pkg.skins.is_empty() && pkg.layouts.is_empty() {
             return Err(ImportError::NoComponents);
+        }
+        return Ok(pkg);
+    }
+    let nested = nested_skin_roots(&t);
+    if !nested.is_empty() {
+        warnings.push("The folder holds skins one or two levels down; those folders were installed as skin roots.".into());
+        for (n, p) in nested {
+            pkg.skins.push((n, vec![p]));
         }
         return Ok(pkg);
     }

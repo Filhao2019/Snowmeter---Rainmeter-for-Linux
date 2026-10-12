@@ -580,3 +580,43 @@ fn f25_multiple_variants_and_resources_not_a_config() {
     assert!(r.compat.iter().all(|c| c.fully_supported));
     assert!(r.to_string().contains("illustro\\Clock: Fully supported"), "{r}");
 }
+
+fn enigma_like(base: &Path) {
+    fs::create_dir_all(base.join("Enigma/@Resources")).unwrap();
+    fs::create_dir_all(base.join("Enigma/Sidebar/Clock")).unwrap();
+    fs::write(base.join("Enigma/@Resources/v.inc"), "x").unwrap();
+    fs::write(base.join("Enigma/Sidebar/Clock/Clock.ini"), "[Rainmeter]\n").unwrap();
+}
+
+#[test]
+fn folder_repo_with_skins_dir_names_root_after_the_skin() {
+    let c = ctx();
+    let src = c.root.join("enigma-repo");
+    enigma_like(&src.join("Skins"));
+    fs::write(src.join("README.md"), "x").unwrap();
+    let r = import_path_with(&c.env, &src, &opts()).unwrap();
+    assert_eq!(r.installed_roots, vec!["Enigma"]);
+    assert!(c.skin("Enigma/Sidebar/Clock/Clock.ini").is_file());
+}
+
+#[test]
+fn folder_that_is_the_skins_container_finds_roots_one_level_down() {
+    let c = ctx();
+    let src = c.root.join("Skins");
+    enigma_like(&src);
+    let r = import_path_with(&c.env, &src, &opts()).unwrap();
+    assert_eq!(r.installed_roots, vec!["Enigma"]);
+    assert!(c.skin("Enigma/Sidebar/Clock/Clock.ini").is_file());
+}
+
+#[test]
+fn folder_with_roots_two_levels_down_and_siblings() {
+    let c = ctx();
+    let src = c.root.join("outer");
+    enigma_like(&src.join("pack"));
+    fs::create_dir_all(src.join("pack/Plain")).unwrap();
+    fs::write(src.join("pack/Plain/p.ini"), "[Rainmeter]\n").unwrap();
+    fs::write(src.join("README.md"), "x").unwrap();
+    let r = import_path_with(&c.env, &src, &opts()).unwrap();
+    assert_eq!(r.installed_roots, vec!["Enigma", "Plain"]);
+}
