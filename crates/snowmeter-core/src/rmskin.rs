@@ -30,11 +30,14 @@ pub struct ImportOptions {
     pub run_fc_cache: bool,
     /// Install although `MinimumRainmeter` is newer than [`EMULATED_RAINMETER`].
     pub ignore_min_version: bool,
+    /// Applying a package layout only sets the layout's own config sections and
+    /// leaves the user's other active skins alone (used by gallery installs).
+    pub layout_keep_others: bool,
 }
 
 impl Default for ImportOptions {
     fn default() -> Self {
-        ImportOptions { backup: true, load: true, run_fc_cache: true, ignore_min_version: false }
+        ImportOptions { backup: true, load: true, run_fc_cache: true, ignore_min_version: false, layout_keep_others: false }
     }
 }
 
@@ -385,7 +388,7 @@ fn safe_components(raw: &[u8]) -> Result<Option<Vec<String>>, ImportError> {
     Ok(Some(comps))
 }
 
-fn extract_zip(data: &[u8], dest: &Path, limits: &Limits) -> Result<(), ImportError> {
+pub(crate) fn extract_zip(data: &[u8], dest: &Path, limits: &Limits) -> Result<(), ImportError> {
     let mut ar = zip::ZipArchive::new(Cursor::new(data)).map_err(|e| ImportError::NotAPackage(format!("not a zip archive ({e})")))?;
     if ar.len() > limits.max_entries {
         return Err(ImportError::TooLarge(format!("{} entries", ar.len())));
@@ -861,7 +864,7 @@ fn install(
 
     // --- load action
     if opts.load && !pkg.opts.load.trim().is_empty() && !pkg.opts.load_type.trim().is_empty() {
-        apply_load(env, &pkg, &mut rep);
+        apply_load(env, &pkg, opts.layout_keep_others, &mut rep);
     }
     Ok(rep)
 }
@@ -1044,6 +1047,12 @@ pub fn activate_skin(env: &Environment, settings: &mut Settings, config: &str, f
 /// Replace the settings' configs with the layout `Layouts/<name>/Rainmeter.ini`
 /// after saving a copy to `Layouts/@Backup/`.
 pub fn apply_layout_by_name(env: &Environment, settings: &mut Settings, name: &str) -> Result<(), String> {
+    apply_layout_by_name_with(env, settings, name, false)
+}
+
+/// Like [`apply_layout_by_name`]; with `keep_others` configs that are not in the
+/// layout keep their state.
+pub fn apply_layout_by_name_with(env: &Environment, settings: &mut Settings, name: &str, keep_others: bool) -> Result<(), String> {
     let layouts = env.settings_dir.join("Layouts");
     let dir = find_ci(&layouts, name).filter(|p| p.is_dir()).ok_or_else(|| format!("Layout \"{name}\" not found"))?;
     let file = find_ci(&dir, "Rainmeter.ini")
@@ -1056,11 +1065,15 @@ pub fn apply_layout_by_name(env: &Environment, settings: &mut Settings, name: &s
         let fname = env.settings_file.file_name().map(|n| n.to_os_string()).unwrap_or_else(|| "snowmeter.ini".into());
         fs::copy(&env.settings_file, bk.join(fname)).map_err(|e| e.to_string())?;
     }
-    settings.apply_layout(&layout);
+    if keep_others {
+        settings.apply_layout_keep_others(&layout);
+    } else {
+        settings.apply_layout(&layout);
+    }
     Ok(())
 }
 
-fn apply_load(env: &Environment, pkg: &Package, rep: &mut ImportReport) {
+fn apply_load(env: &Environment, pkg: &Package, keep_others: bool, rep: &mut ImportReport) {
     let mut settings = Settings::load(env);
     let load = pkg.opts.load.trim();
     if pkg.opts.load_type.trim().eq_ignore_ascii_case("skin") {
@@ -1080,7 +1093,7 @@ fn apply_load(env: &Environment, pkg: &Package, rep: &mut ImportReport) {
             Err(e) => rep.warnings.push(format!("Could not load the skin: {e}")),
         }
     } else {
-        match apply_layout_by_name(env, &mut settings, load) {
+        match apply_layout_by_name_with(env, &mut settings, load, keep_others) {
             Ok(()) => match settings.save() {
                 Ok(()) => rep.loaded_layout = Some(load.to_string()),
                 Err(e) => rep.warnings.push(format!("Could not save settings: {e}")),

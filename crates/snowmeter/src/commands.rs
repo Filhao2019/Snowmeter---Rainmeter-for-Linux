@@ -1,9 +1,11 @@
 //! Non-GUI subcommands: talk to the running instance over IPC or fall back to
 //! editing `snowmeter.ini` / working locally.
 
+use crate::firstrun;
 use crate::ipc::{self, Request};
 use crate::Cmd;
 use snowmeter_core::env::Environment;
+use snowmeter_core::gallery;
 use snowmeter_core::registry::SkinRegistry;
 use snowmeter_core::rmskin::{self, ImportError, ImportOptions};
 use snowmeter_core::settings::Settings;
@@ -127,6 +129,8 @@ pub fn run(cmd: Cmd) -> i32 {
             }
         },
         Cmd::Import { path } => import(&env, &sock, &path),
+        Cmd::Gallery => gallery_list(&env),
+        Cmd::Install { name, force } => gallery_install(&env, &sock, &name, force),
         Cmd::Check { target } => match snowmeter_core::compat::check_path(&env, &target) {
             Ok(reports) => {
                 for r in &reports {
@@ -157,6 +161,76 @@ pub fn run(cmd: Cmd) -> i32 {
                     1
                 }
             }
+        }
+    }
+}
+
+/// `gallery` table: name, author, license, status, installed.
+pub fn format_gallery(entries: &[gallery::Entry], env: &Environment) -> String {
+    let rows: Vec<[String; 5]> = entries
+        .iter()
+        .map(|e| {
+            let status = if e.status.is_empty() { "-".to_string() } else { e.status.clone() };
+            let inst = if gallery::is_installed(env, e) { "yes" } else { "no" };
+            [e.name.clone(), e.author.clone(), e.license.clone(), status, inst.to_string()]
+        })
+        .collect();
+    let head = ["NAME", "AUTHOR", "LICENSE", "STATUS", "INSTALLED"].map(String::from);
+    let mut w = [0usize; 5];
+    for r in std::iter::once(&head).chain(rows.iter()) {
+        for (i, c) in r.iter().enumerate() {
+            w[i] = w[i].max(c.chars().count());
+        }
+    }
+    let mut out = String::new();
+    for r in std::iter::once(&head).chain(rows.iter()) {
+        let cells: Vec<String> = r.iter().enumerate().map(|(i, c)| format!("{c:<width$}", width = w[i])).collect();
+        out.push_str(cells.join("  ").trim_end());
+        out.push('\n');
+    }
+    out
+}
+
+fn gallery_list(env: &Environment) -> i32 {
+    let Some(dir) = firstrun::bundled_dir() else {
+        eprintln!("snowmeter: the bundled skins folder was not found (set SNOWMETER_BUNDLED_SKINS)");
+        return 1;
+    };
+    let entries = gallery::load_catalog(&dir);
+    if entries.is_empty() {
+        eprintln!("snowmeter: no catalog.ini entries in {}", dir.display());
+        return 1;
+    }
+    print!("{}", format_gallery(&entries, env));
+    0
+}
+
+fn gallery_install(env: &Environment, sock: &std::path::Path, name: &str, force: bool) -> i32 {
+    let Some(dir) = firstrun::bundled_dir() else {
+        eprintln!("snowmeter: the bundled skins folder was not found (set SNOWMETER_BUNDLED_SKINS)");
+        return 1;
+    };
+    let entries = gallery::load_catalog(&dir);
+    let Some(entry) = entries.iter().find(|e| e.name.eq_ignore_ascii_case(name)) else {
+        eprintln!("snowmeter: no gallery entry \"{name}\" (see `snowmeter gallery`)");
+        return 1;
+    };
+    let mut settings = Settings::load(env);
+    let opts = gallery::InstallOptions { force, bundled_dir: Some(dir), ..Default::default() };
+    match gallery::install(env, &mut settings, entry, &opts) {
+        Ok(report) => {
+            print!("{report}");
+            for c in &report.configs {
+                println!("Load it with: snowmeter load \"{c}\"");
+            }
+            if ipc::send(sock, &Request::Rescan).is_ok() {
+                println!("The running instance was asked to rescan.");
+            }
+            0
+        }
+        Err(e) => {
+            eprintln!("snowmeter: {e}");
+            1
         }
     }
 }
@@ -214,6 +288,19 @@ mod tests {
         };
         let out = format_list(&reg, &[("A\\ONE".into(), "One.ini".into())]);
         assert_eq!(out, "* a\\One [One.ini]\n  a\\Two\n");
+    }
+
+    #[test]
+    fn gallery_table() {
+        let tmp = tempfile::tempdir().unwrap();
+        let env = Environment::with_root(tmp.path());
+        std::fs::create_dir_all(env.skins_dir.join("Suite")).unwrap();
+        let e = gallery::parse_catalog("[Suite]\nKind=folder\nPath=Suite\nAuthor=Me\nLicense=MIT\n[Other]\nKind=remote\nUrl=u\nStatus=good\n");
+        let t = format_gallery(&e, &env);
+        let lines: Vec<&str> = t.lines().collect();
+        assert!(lines[0].starts_with("NAME") && lines[0].ends_with("INSTALLED"));
+        assert!(lines[1].starts_with("Suite") && lines[1].ends_with("yes"), "{t}");
+        assert!(lines[2].starts_with("Other") && lines[2].contains("good") && lines[2].ends_with("no"), "{t}");
     }
 
     #[test]

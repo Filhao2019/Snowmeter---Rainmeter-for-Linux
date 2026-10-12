@@ -11,6 +11,7 @@ use crate::x11;
 use gtk4::prelude::*;
 use gtk4::{gdk, gio, glib};
 use snowmeter_core::env::{Environment, Rect};
+use snowmeter_core::gallery;
 use snowmeter_core::registry::SkinRegistry;
 use snowmeter_core::rmskin::activate_skin;
 use snowmeter_core::settings::{ConfigState, Settings, WindowType};
@@ -25,6 +26,8 @@ use std::time::Duration;
 enum Msg {
     Ipc(Request, mpsc::Sender<String>),
     Tray(TrayCmd),
+    /// A background gallery install finished: `(entry, Ok(report) | Err(message))`.
+    GalleryDone(String, Result<String, String>),
 }
 
 pub struct Inner {
@@ -38,6 +41,8 @@ pub struct Inner {
     tray: RefCell<Option<Tray>>,
     window_type: Cell<WindowType>,
     sock: std::path::PathBuf,
+    tx: mpsc::Sender<Msg>,
+    installing: RefCell<Vec<String>>,
 }
 
 /// How an `OpenOrRun` string is launched.
@@ -476,9 +481,41 @@ impl Inner {
             .collect()
     }
 
+    /// Names of gallery entries that are not installed yet.
+    fn gallery_list(&self) -> Vec<String> {
+        let Some(dir) = crate::firstrun::bundled_dir() else { return Vec::new() };
+        let env = self.env.borrow();
+        gallery::load_catalog(&dir).into_iter().filter(|e| !gallery::is_installed(&env, e)).map(|e| e.name).collect()
+    }
+
+    /// Install a gallery entry on a worker thread (downloads can be slow).
+    fn install_gallery(self: &Rc<Self>, name: String) {
+        if self.installing.borrow().contains(&name) {
+            return;
+        }
+        let Some(dir) = crate::firstrun::bundled_dir() else {
+            log::warn!("gallery: bundled skins folder not found");
+            return;
+        };
+        let Some(entry) = gallery::load_catalog(&dir).into_iter().find(|e| e.name == name) else {
+            log::warn!("gallery: no catalog entry \"{name}\"");
+            return;
+        };
+        self.installing.borrow_mut().push(name.clone());
+        log::info!("gallery: installing {name}");
+        let env = self.env.borrow().clone();
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let mut settings = Settings::load(&env);
+            let opts = gallery::InstallOptions { bundled_dir: Some(dir), ..Default::default() };
+            let res = gallery::install(&env, &mut settings, &entry, &opts).map(|r| r.to_string()).map_err(|e| e.to_string());
+            let _ = tx.send(Msg::GalleryDone(name, res));
+        });
+    }
+
     fn update_tray(&self) {
         if let Some(t) = self.tray.borrow().as_ref() {
-            t.set_skins(self.tray_list());
+            t.set_skins(self.tray_list(), self.gallery_list());
         }
     }
 
@@ -497,8 +534,17 @@ impl Inner {
                 TrayCmd::RefreshAll => self.submit("tray", vec![AppRequest::RefreshApp]),
                 TrayCmd::ToggleSkin(c) => self.submit("tray", vec![AppRequest::Toggle { config: c, file: None }]),
                 TrayCmd::OpenSkinsFolder => open_or_run(&self.env.borrow().skins_dir.to_string_lossy()),
+                TrayCmd::InstallSkin(n) => self.install_gallery(n),
                 TrayCmd::Quit => self.gapp.quit(),
             },
+            Msg::GalleryDone(name, res) => {
+                self.installing.borrow_mut().retain(|n| *n != name);
+                match res {
+                    Ok(report) => log::info!("gallery: installed {name}\n{report}"),
+                    Err(e) => log::warn!("gallery: installing {name} failed: {e}"),
+                }
+                self.rescan();
+            }
         }
     }
 
@@ -640,6 +686,8 @@ fn start(gapp: &gtk4::Application, sock: std::path::PathBuf, tx: &mpsc::Sender<M
         draining: Cell::new(false),
         tray: RefCell::new(None),
         sock,
+        tx: tx.clone(),
+        installing: RefCell::new(Vec::new()),
     });
     if let Some(display) = gdk::Display::default() {
         let weak = Rc::downgrade(&inner);
@@ -657,7 +705,7 @@ fn start(gapp: &gtk4::Application, sock: std::path::PathBuf, tx: &mpsc::Sender<M
         }
     }
     let tx = tx.clone();
-    let tray = Tray::start(inner.tray_list(), move |cmd| {
+    let tray = Tray::start(inner.tray_list(), inner.gallery_list(), move |cmd| {
         let _ = tx.send(Msg::Tray(cmd));
     });
     *inner.tray.borrow_mut() = tray;

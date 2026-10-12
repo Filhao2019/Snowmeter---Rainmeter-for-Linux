@@ -40,6 +40,15 @@ pub enum Cmd {
     Refresh { config: Option<String> },
     /// Import a .rmskin package, zip or skin folder.
     Import { path: PathBuf },
+    /// List the skin gallery (bundled and downloadable skins).
+    Gallery,
+    /// Install a gallery skin by name (see `snowmeter gallery`).
+    Install {
+        name: String,
+        /// Reinstall over an existing copy.
+        #[arg(long)]
+        force: bool,
+    },
     /// Compatibility report for a skin, config name or path (no window).
     Check { target: String },
     /// Render a skin to a PNG without a window.
@@ -107,6 +116,9 @@ mod tests {
             parse(&["render", "a", "f.ini", "--out", "o.png"]).command,
             Some(Cmd::Render { config: "a".into(), file: Some("f.ini".into()), out: "o.png".into(), ticks: 1 })
         );
+        assert_eq!(parse(&["gallery"]).command, Some(Cmd::Gallery));
+        assert_eq!(parse(&["install", "Mond"]).command, Some(Cmd::Install { name: "Mond".into(), force: false }));
+        assert_eq!(parse(&["install", "Mond", "--force"]).command, Some(Cmd::Install { name: "Mond".into(), force: true }));
         assert_eq!(parse(&["-v", "quit"]).command, Some(Cmd::Quit));
     }
 

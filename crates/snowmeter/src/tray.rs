@@ -10,12 +10,16 @@ pub enum TrayCmd {
     RefreshAll,
     ToggleSkin(String),
     OpenSkinsFolder,
+    /// Install a gallery entry by catalog name.
+    InstallSkin(String),
     Quit,
 }
 
 pub struct SnowTray {
     /// `(config, active)`.
     pub skins: Vec<(String, bool)>,
+    /// Gallery entries that are not installed.
+    pub gallery: Vec<String>,
     send: Arc<dyn Fn(TrayCmd) + Send + Sync>,
 }
 
@@ -57,6 +61,22 @@ impl ksni::Tray for SnowTray {
                 .collect()
         };
         items.push(SubMenu { label: "Skins".into(), submenu: skins, ..Default::default() }.into());
+        if !self.gallery.is_empty() {
+            let get: Vec<MenuItem<Self>> = self
+                .gallery
+                .iter()
+                .map(|name| {
+                    let n = name.clone();
+                    StandardItem {
+                        label: name.replace('_', "__"),
+                        activate: Box::new(move |t: &mut Self| (t.send)(TrayCmd::InstallSkin(n.clone()))),
+                        ..Default::default()
+                    }
+                    .into()
+                })
+                .collect();
+            items.push(SubMenu { label: "Get skins".into(), submenu: get, ..Default::default() }.into());
+        }
         items.push(
             StandardItem {
                 label: "Open skins folder".into(),
@@ -85,8 +105,8 @@ pub struct Tray {
 
 impl Tray {
     /// Start the tray; `None` (after logging) if no tray host is available.
-    pub fn start(skins: Vec<(String, bool)>, send: impl Fn(TrayCmd) + Send + Sync + 'static) -> Option<Tray> {
-        match (SnowTray { skins, send: Arc::new(send) }).spawn() {
+    pub fn start(skins: Vec<(String, bool)>, gallery: Vec<String>, send: impl Fn(TrayCmd) + Send + Sync + 'static) -> Option<Tray> {
+        match (SnowTray { skins, gallery, send: Arc::new(send) }).spawn() {
             Ok(handle) => Some(Tray { handle }),
             Err(e) => {
                 log::warn!("tray unavailable: {e}");
@@ -95,8 +115,11 @@ impl Tray {
         }
     }
 
-    pub fn set_skins(&self, skins: Vec<(String, bool)>) {
-        let _ = self.handle.update(|t: &mut SnowTray| t.skins = skins);
+    pub fn set_skins(&self, skins: Vec<(String, bool)>, gallery: Vec<String>) {
+        let _ = self.handle.update(|t: &mut SnowTray| {
+            t.skins = skins;
+            t.gallery = gallery;
+        });
     }
 
     pub fn shutdown(&self) {

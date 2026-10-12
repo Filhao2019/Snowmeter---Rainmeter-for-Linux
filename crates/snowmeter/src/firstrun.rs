@@ -1,6 +1,7 @@
-//! First start: copy the bundled skins into the skins folder and activate the defaults.
+//! Start-up: copy bundled skin roots into the skins folder and, on the first start, activate the defaults.
 
 use snowmeter_core::env::Environment;
+use snowmeter_core::gallery;
 use snowmeter_core::registry::SkinRegistry;
 use snowmeter_core::rmskin::activate_skin;
 use snowmeter_core::settings::Settings;
@@ -22,54 +23,49 @@ pub fn find_bundled(env_override: Option<PathBuf>, exe_dir: Option<&Path>) -> Op
     candidates.into_iter().find(|p| p.is_dir())
 }
 
-/// Recursively copy `src` into `dst`, never replacing an existing file.
-/// Returns the number of files copied.
-pub fn copy_no_overwrite(src: &Path, dst: &Path) -> std::io::Result<usize> {
-    std::fs::create_dir_all(dst)?;
-    let mut n = 0;
-    for e in std::fs::read_dir(src)? {
-        let e = e?;
-        let to = dst.join(e.file_name());
-        let ft = e.file_type()?;
-        if ft.is_dir() {
-            n += copy_no_overwrite(&e.path(), &to)?;
-        } else if ft.is_file() && !to.exists() {
-            std::fs::copy(e.path(), &to)?;
-            n += 1;
-        }
-    }
-    Ok(n)
+/// The bundled skins directory for this process, if any.
+pub fn bundled_dir() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
+    find_bundled(std::env::var_os("SNOWMETER_BUNDLED_SKINS").map(PathBuf::from), exe_dir.as_deref())
 }
 
-/// Run the first-run setup when `FirstRunDone` is missing. Returns true if it ran.
+/// Every start: copy bundled `folder` roots this user was never offered (see
+/// `gallery::sync_bundled`). On the first start (`FirstRunDone` missing) also
+/// activate the default widgets. Returns true if it was the first run.
 pub fn run(env: &Environment, settings: &mut Settings) -> bool {
-    if settings.first_run_done() {
-        return false;
+    let first = !settings.first_run_done();
+    let mut changed = false;
+    match bundled_dir() {
+        Some(dir) => {
+            let copied = gallery::sync_bundled(env, settings, &dir);
+            changed = !copied.is_empty();
+            if !copied.is_empty() {
+                log::info!("copied bundled skins: {}", copied.join(", "));
+            }
+        }
+        None if first => log::info!("first run: no bundled skins found"),
+        None => {}
     }
-    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
-    let bundled = find_bundled(std::env::var_os("SNOWMETER_BUNDLED_SKINS").map(PathBuf::from), exe_dir.as_deref());
-    match bundled {
-        Some(dir) => match copy_no_overwrite(&dir, &env.skins_dir) {
-            Ok(n) => log::info!("first run: copied {n} bundled skin files from {}", dir.display()),
-            Err(e) => log::warn!("first run: copying bundled skins from {} failed: {e}", dir.display()),
-        },
-        None => log::info!("first run: no bundled skins found"),
-    }
-    let reg = SkinRegistry::scan(env);
-    for name in DEFAULT_CONFIGS {
-        if let Some(c) = reg.config(name) {
-            if let Some(file) = c.files.first().cloned() {
-                if let Err(e) = activate_skin(env, settings, name, &file) {
-                    log::warn!("first run: cannot activate {name}: {e}");
+    if first {
+        let reg = SkinRegistry::scan(env);
+        for name in DEFAULT_CONFIGS {
+            if let Some(c) = reg.config(name) {
+                if let Some(file) = c.files.first().cloned() {
+                    if let Err(e) = activate_skin(env, settings, name, &file) {
+                        log::warn!("first run: cannot activate {name}: {e}");
+                    }
                 }
             }
         }
+        settings.set_first_run_done(true);
+        changed = true;
     }
-    settings.set_first_run_done(true);
-    if let Err(e) = settings.save() {
-        log::warn!("first run: cannot save settings: {e}");
+    if changed {
+        if let Err(e) = settings.save() {
+            log::warn!("cannot save settings: {e}");
+        }
     }
-    true
+    first
 }
 
 #[cfg(test)]
@@ -98,18 +94,6 @@ mod tests {
     }
 
     #[test]
-    fn copy_keeps_existing_files() {
-        let t = tempfile::tempdir().unwrap();
-        write(&t.path().join("src/Snowmeter/System/System.ini"), "new");
-        write(&t.path().join("src/Snowmeter/System/@Resources/x.txt"), "x");
-        write(&t.path().join("dst/Snowmeter/System/System.ini"), "mine");
-        let n = copy_no_overwrite(&t.path().join("src"), &t.path().join("dst")).unwrap();
-        assert_eq!(n, 1);
-        assert_eq!(std::fs::read_to_string(t.path().join("dst/Snowmeter/System/System.ini")).unwrap(), "mine");
-        assert!(t.path().join("dst/Snowmeter/System/@Resources/x.txt").exists());
-    }
-
-    #[test]
     fn first_run_activates_defaults() {
         let t = tempfile::tempdir().unwrap();
         let env = Environment::with_root(&t.path().join("cfg"));
@@ -123,6 +107,8 @@ mod tests {
         assert!(s.first_run_done());
         let active: Vec<String> = s.active_configs().into_iter().map(|(n, _)| n).collect();
         assert_eq!(active, vec!["Snowmeter\\System".to_string()]);
+        assert_eq!(s.global("BundledInstalled"), Some("Snowmeter"));
+        assert!(env.skins_dir.join("Snowmeter/Other/Other.ini").is_file());
         let mut s = s;
         assert!(!run(&env, &mut s));
     }

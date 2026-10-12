@@ -236,9 +236,18 @@ impl Settings {
     /// layout become inactive, layout config sections replace ours, and the
     /// global `[Rainmeter]`/`[Snowmeter]` sections of the layout are ignored.
     pub fn apply_layout(&mut self, layout: &IniFile) {
+        self.apply_layout_inner(layout, true);
+    }
+
+    /// Set the layout's config sections only; other configs are not deactivated.
+    pub fn apply_layout_keep_others(&mut self, layout: &IniFile) {
+        self.apply_layout_inner(layout, false);
+    }
+
+    fn apply_layout_inner(&mut self, layout: &IniFile, deactivate_others: bool) {
         let layout_names: Vec<&str> =
             layout.sections().iter().filter(|s| !is_reserved_section(&s.name)).map(|s| s.name.as_str()).collect();
-        for c in self.config_names() {
+        for c in self.config_names().into_iter().filter(|_| deactivate_others) {
             if !layout_names.iter().any(|n| n.eq_ignore_ascii_case(&c)) {
                 self.ini.set(&c, "Active", "0");
             }

@@ -17,6 +17,8 @@ pub struct Environment {
     pub settings_file: PathBuf,
     pub program_dir: PathBuf,
     pub fonts_install_dir: PathBuf,
+    /// Where gallery downloads are cached.
+    pub gallery_cache_dir: PathBuf,
     /// Virtual-desktop coordinates, index 0 = primary.
     pub monitors: Vec<Rect>,
     pub work_areas: Vec<Rect>,
@@ -43,6 +45,7 @@ impl Environment {
             settings_file: dir.join("snowmeter.ini"),
             program_dir: dir.join("program"),
             fonts_install_dir: dir.join("fonts"),
+            gallery_cache_dir: dir.join("cache").join("gallery"),
             monitors: default_monitors(),
             work_areas: default_monitors(),
         }
@@ -64,6 +67,8 @@ impl Environment {
         if !overridden {
             let data = nonempty_var("XDG_DATA_HOME").unwrap_or_else(|| home.join(".local").join("share"));
             env.fonts_install_dir = data.join("fonts").join("snowmeter");
+            let cache = nonempty_var("XDG_CACHE_HOME").unwrap_or_else(|| home.join(".cache"));
+            env.gallery_cache_dir = cache.join("snowmeter").join("gallery");
         }
         if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)) {
             env.program_dir = dir;

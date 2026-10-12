@@ -62,13 +62,15 @@ instance over a Unix socket (`$XDG_RUNTIME_DIR/snowmeter.sock`).
 | `snowmeter list` | configs and active state | same, read from disk |
 | `snowmeter refresh [config]` | refreshes | error "not running" |
 | `snowmeter import <file.rmskin or folder>` | runs locally, then asks the instance to refresh | runs locally |
+| `snowmeter gallery` | lists gallery skins (name, author, license, status, installed) | same |
+| `snowmeter install <name> [--force]` | installs a gallery skin (bundled or downloaded from the author), prints the compatibility report, asks the instance to rescan | installs locally |
 | `snowmeter check <skin>` | prints a compatibility report, no window | same |
 | `snowmeter render <config> [ini] --out f.png` | headless render to PNG | same |
 
 Right-click a widget for Refresh, Unload, Draggable, Click-through, Keep on
 screen and Open skin folder. A skin's own `RightMouseUpAction` replaces the
 menu; Ctrl+right-click always opens it. The tray menu lists active skins and
-offers Refresh all, Load skin and Quit.
+offers Refresh all, Load skin, Get skins (gallery entries not installed yet; installs run in the background) and Quit.
 
 ## Where things live
 

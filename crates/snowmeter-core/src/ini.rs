@@ -20,7 +20,7 @@ const CP1252_HIGH: [u16; 32] = [
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Encoding {
+pub enum Encoding {
     Utf16Le { bom: bool },
     Utf16Be,
     Utf8Bom,
@@ -28,7 +28,7 @@ enum Encoding {
     Ansi,
 }
 
-fn detect(bytes: &[u8]) -> Encoding {
+pub fn detect(bytes: &[u8]) -> Encoding {
     if bytes.starts_with(&[0xFE, 0xFF]) {
         return Encoding::Utf16Be;
     }
@@ -112,7 +112,7 @@ fn decode_checked(bytes: &[u8]) -> Result<String, String> {
     }
 }
 
-fn encode_text(text: &str, enc: Encoding) -> Vec<u8> {
+pub fn encode_text(text: &str, enc: Encoding) -> Vec<u8> {
     match enc {
         Encoding::Utf16Le { bom } => {
             let mut v = Vec::new();
