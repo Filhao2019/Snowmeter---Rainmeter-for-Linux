@@ -60,6 +60,7 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("coretemp", || Box::new(super::temps::CoreTemp::new())),
     ("speedfan", || Box::new(super::temps::SpeedFan::new())),
     ("hwinfo", || Box::new(super::temps::HwInfo::new())),
+    ("ping", || Box::new(super::ping::Ping::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),

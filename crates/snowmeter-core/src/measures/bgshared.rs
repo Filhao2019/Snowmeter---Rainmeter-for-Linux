@@ -66,6 +66,11 @@ impl<T: Clone + Send + 'static> Bg<T> {
         self.inner.0.lock().map(|s| s.value.clone()).unwrap_or_default()
     }
 
+    /// Change the stored value in place (e.g. consume a "finished" flag).
+    pub fn modify<R>(&self, f: impl FnOnce(&mut T) -> R) -> Option<R> {
+        self.inner.0.lock().ok().map(|mut s| f(&mut s.value))
+    }
+
     /// Run `job` on a worker unless one is already running. Returns true if started.
     pub fn start(&self, grace: Duration, job: impl FnOnce() -> T + Send + 'static) -> bool {
         {
