@@ -15,7 +15,7 @@ Status is how well the skin works in Snowmeter today: good means the main config
 
 | Name | Author | License | Kind | Status | Notes |
 |---|---|---|---|---|---|
-| Snowmeter | Snowmeter contributors | GPL-2.0-or-later | bundled | good | Weekday, System and Disk widgets that ship with Snowmeter |
+| Snowmeter | Snowmeter contributors | MIT | bundled | good | Weekday, System and Disk widgets that ship with Snowmeter |
 | Mond | ApexXx-SenSei | CC BY-NC-ND 3.0 | original package (bundled) | good | Original package, unmodified (the license allows no derivatives). On install Snowmeter downloads the Anurati font (personal use, not redistributed here) and switches the dead Yahoo weather source to wttr.in in your local copy. |
 | illustro | Rainmeter team | GPL-2.0 | bundled | good | The Google search config uses the TextEdit input of the Rainmeter fork. |
 | SilverAzide-Gadgets | SilverAzide | CC BY-NC-SA 4.0 | bundled | good | The All CPU Meter renders empty. Windows-only plugins (Mouse, ConfigActive, CursorColor, ActiveNet) are not included. |
@@ -48,7 +48,7 @@ Thanks to all skin authors: ApexXx-SenSei (Mond), the Rainmeter team (illustro),
 
 ## Licensing
 
-Snowmeter itself is GPL-2.0. The skins in this folder are not: every bundled skin keeps its own license, stored in its folder as `LICENSE`, with the exact upstream ref and the list of removed files in `SOURCE.md`. Skins under CC BY-NC-SA terms (Gadgets, Wisp, Enigma, ModernGadgets) stay non-commercial and share-alike, and Mond (CC BY-NC-ND) is shipped as the author's unmodified package. Windows-only plugins, executables and proprietary fonts were removed from bundled copies. Skins without any license (all rights reserved), or that carry third-party art or fonts, are not redistributed here: `snowmeter install` downloads them from their authors at the pinned release or commit.
+Snowmeter itself is MIT-licensed. The skins in this folder are not: every bundled skin keeps its own license, stored in its folder as `LICENSE`, with the exact upstream ref and the list of removed files in `SOURCE.md`. Skins under CC BY-NC-SA terms (Gadgets, Wisp, Enigma, ModernGadgets) stay non-commercial and share-alike, and Mond (CC BY-NC-ND) is shipped as the author's unmodified package. Windows-only plugins, executables and proprietary fonts were removed from bundled copies. Skins without any license (all rights reserved), or that carry third-party art or fonts, are not redistributed here: `snowmeter install` downloads them from their authors at the pinned release or commit.
 
 To keep downloads small, the bundled PNGs are losslessly recompressed (oxipng)
 and Windows-only files are left out: the NetMonitor `.msi` installers

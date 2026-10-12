@@ -2,7 +2,7 @@
 
 > **For agentic workers:** executed with superpowers:subagent-driven-development in a token-saving form (see `decisions.md` #6): one Sonnet implementer per milestone, milestone-level reviews. Steps use `- [ ]` checkboxes.
 
-**Goal:** A GPL-2.0 Linux desktop widget app that runs unmodified Windows Rainmeter skins (folders and `.rmskin`).
+**Goal:** An MIT-licensed Linux desktop widget app that runs unmodified Windows Rainmeter skins (folders and `.rmskin`).
 
 **Architecture:** Cargo workspace. `crates/snowmeter-core` = engine with no GTK (INI/ConfigParser, variables, formulas, bangs, measures, meters, Cairo/Pango rendering, importer, compat checker, headless PNG renderer). `crates/snowmeter` = GTK4 app (X11 desktop-type windows, input, context menu, tray, IPC, CLI). See `notes/architecture.md`.
 

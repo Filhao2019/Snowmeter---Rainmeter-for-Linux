@@ -7,7 +7,7 @@ and Cairo, and it follows the behaviour of stock Rainmeter 4.5: the same
 `.rmskin` packages. Skins sit on the desktop as transparent windows and update
 live.
 
-Snowmeter is licensed under the GPL-2.0 (see `LICENSE`). It is an independent
+Snowmeter is licensed under the MIT License (see `LICENSE`). It is an independent
 project and is not affiliated with, endorsed by or derived from the Rainmeter
 project or its authors.
 
