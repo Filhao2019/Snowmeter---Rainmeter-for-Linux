@@ -24,6 +24,22 @@ pub fn mask_key(w: i32, h: i32, alpha: &[u8]) -> u64 {
 /// `(x, y, w, h)`.
 pub type RectI = (i32, i32, i32, i32);
 
+/// Rectangles in skin pixels to screen pixels at scale `k`; edges are rounded
+/// outwards so a scaled skin never loses clickable pixels.
+pub fn scale_rects(rects: &[RectI], k: f64) -> Vec<RectI> {
+    if (k - 1.0).abs() < f64::EPSILON {
+        return rects.to_vec();
+    }
+    rects
+        .iter()
+        .map(|&(x, y, w, h)| {
+            let (x0, y0) = ((x as f64 * k).floor() as i32, (y as f64 * k).floor() as i32);
+            let (x1, y1) = (((x + w) as f64 * k).ceil() as i32, ((y + h) as f64 * k).ceil() as i32);
+            (x0, y0, (x1 - x0).max(1), (y1 - y0).max(1))
+        })
+        .collect()
+}
+
 /// Row runs of non-zero alpha, with identical consecutive rows merged into
 /// taller rectangles.
 pub fn mask_rects(w: i32, h: i32, alpha: &[u8]) -> Vec<RectI> {
@@ -114,5 +130,13 @@ mod tests {
         let reg = to_region(&[(0, 0, 4, 2), (0, 2, 2, 1)]);
         assert!(reg.contains_point(1, 1));
         assert!(!reg.contains_point(3, 2));
+    }
+
+    #[test]
+    fn scaled_rects_cover_the_scaled_area() {
+        assert_eq!(scale_rects(&[(1, 2, 3, 4)], 1.0), vec![(1, 2, 3, 4)]);
+        assert_eq!(scale_rects(&[(1, 2, 3, 4)], 2.0), vec![(2, 4, 6, 8)]);
+        assert_eq!(scale_rects(&[(1, 1, 1, 1)], 1.5), vec![(1, 1, 2, 2)]);
+        assert_eq!(scale_rects(&[(0, 0, 10, 10)], 0.5), vec![(0, 0, 5, 5)]);
     }
 }

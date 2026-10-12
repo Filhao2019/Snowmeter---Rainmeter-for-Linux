@@ -86,13 +86,17 @@ pub fn classify_command(s: &str) -> Launch {
     if unq.contains("://") || unq.starts_with("mailto:") {
         return Launch::Open(unq.to_string());
     }
-    let p = std::path::Path::new(unq);
-    if p.is_dir() {
-        return Launch::Open(unq.to_string());
-    }
-    if p.is_file() {
-        let exec = p.metadata().map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false);
-        return if exec { Launch::Run(vec![unq.to_string()]) } else { Launch::Open(unq.to_string()) };
+    // Skins build paths Windows-style (`#@#Folder\file.txt`): try `/` too.
+    let slashed = unq.replace('\\', "/");
+    for cand in [unq, slashed.as_str()] {
+        let p = std::path::Path::new(cand);
+        if p.is_dir() {
+            return Launch::Open(cand.to_string());
+        }
+        if p.is_file() {
+            let exec = p.metadata().map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false);
+            return if exec { Launch::Run(vec![cand.to_string()]) } else { Launch::Open(cand.to_string()) };
+        }
     }
     Launch::Run(split_words(t))
 }
@@ -322,6 +326,19 @@ impl Inner {
             }
             AppRequest::Resize => {}
             AppRequest::Quit => self.gapp.quit(),
+            AppRequest::Menu { config, custom_only } => {
+                if let Some(w) = self.find(&config) {
+                    w.popup_menu(custom_only);
+                }
+            }
+            AppRequest::EditSkin { config, file } => match self.resolve(&config, file.as_deref()) {
+                Ok((name, file)) => {
+                    if let Some(p) = self.registry.borrow().ini_path(&name, &file) {
+                        open_or_run(&p.to_string_lossy());
+                    }
+                }
+                Err(e) => log::warn!("!EditSkin: {e}"),
+            },
             AppRequest::InputText { config, spec } => {
                 if let Some(w) = self.find(&config) {
                     let weak = Rc::downgrade(&w);
@@ -354,6 +371,22 @@ impl Inner {
             }
         };
         self.persist_key(&w.config, key, if flag { "1" } else { "0" });
+    }
+
+    /// Resize a skin (context menu "Size", Ctrl+wheel, `snowmeter scale`) and remember it.
+    pub fn set_scale(&self, config: &str, pct: u32) {
+        if let Some(w) = self.find(config) {
+            let pct = snowmeter_core::settings::clamp_scale(pct as i64);
+            if w.scale_percent() != pct {
+                w.set_scale(pct);
+                self.persist_key(&w.config, "Scale", &pct.to_string());
+            }
+        }
+    }
+
+    /// The `.ini` files of a config, for the "Variants" menu.
+    pub fn variants(&self, config: &str) -> Vec<String> {
+        self.registry.borrow().config(&norm(config)).map(|c| c.files.clone()).unwrap_or_default()
     }
 
     /// Context-menu toggles.
@@ -587,6 +620,21 @@ impl Inner {
                     (ipc::ok("refreshed all"), false)
                 }
             },
+            Request::Bang { config, actions } => {
+                if config != "*" && self.find(&config).is_none() {
+                    (ipc::err(&format!("\"{config}\" is not loaded")), false)
+                } else {
+                    self.submit("ipc", vec![AppRequest::BangOther { config, actions }]);
+                    (ipc::ok(""), false)
+                }
+            }
+            Request::Scale { config, percent } => match self.find(&config) {
+                None => (ipc::err(&format!("\"{config}\" is not loaded")), false),
+                Some(w) => {
+                    self.set_scale(&w.config, percent);
+                    (ipc::ok(&format!("{} is now {}%", w.config, w.scale_percent())), false)
+                }
+            },
             Request::Rescan => {
                 self.rescan();
                 (ipc::ok("rescanned"), false)
@@ -769,6 +817,11 @@ mod tests {
         std::fs::write(&f, "x").unwrap();
         assert_eq!(classify_command(&format!("\"{}\"", f.display())), Launch::Open(f.to_string_lossy().into_owned()));
         assert_eq!(classify_command("gnome-system-monitor --foo"), Launch::Run(vec!["gnome-system-monitor".into(), "--foo".into()]));
+        // A Windows-style path to an existing file is opened, not run.
+        std::fs::create_dir_all(t.path().join("Sub")).unwrap();
+        std::fs::write(t.path().join("Sub/note.txt"), "x").unwrap();
+        let win = format!("{}/Sub\\note.txt", t.path().display());
+        assert_eq!(classify_command(&win), Launch::Open(format!("{}/Sub/note.txt", t.path().display())));
     }
 
     #[test]

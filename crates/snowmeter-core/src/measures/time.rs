@@ -4,7 +4,7 @@
 use super::{MeasureCtx, MeasureImpl};
 use crate::numparse::parse_f64_prefix;
 use crate::parser::OptionReader;
-use crate::timefmt::try_format_time;
+use crate::timefmt::{try_format_time_in, LocaleNames};
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime};
 
 /// Seconds between 1601-01-01 and 1970-01-01.
@@ -227,6 +227,8 @@ pub fn parse_timestamp(s: &str, fmt: &str) -> Option<f64> {
 
 pub struct TimeMeasure {
     format: String,
+    /// `FormatLocale`: day and month names (English when unset or unknown).
+    names: Option<&'static LocaleNames>,
     tz: TzMode,
     dst: bool,
     stamp: Stamp,
@@ -249,6 +251,7 @@ impl TimeMeasure {
     pub fn with_clock(clock: Box<dyn Fn() -> f64>, zone: Box<dyn Fn(i64) -> ZoneInfo>) -> TimeMeasure {
         TimeMeasure {
             format: String::new(),
+            names: None,
             tz: TzMode::Local,
             dst: true,
             stamp: Stamp::Current,
@@ -315,7 +318,7 @@ impl TimeMeasure {
         } else {
             self.format.as_str()
         };
-        let r = try_format_time(fmt, &dt, self.std_offset);
+        let r = try_format_time_in(fmt, &dt, self.std_offset, self.names);
         if r.is_none() && !self.logged_invalid {
             self.log.push(format!("Time: \"Format={}\" invalid", self.format));
             self.logged_invalid = true;
@@ -357,12 +360,15 @@ impl MeasureImpl for TimeMeasure {
         } else if ts.eq_ignore_ascii_case("DSTNextEnd") {
             Stamp::Dst { start: false, year: None, next: true }
         } else {
-            match ts.trim().parse::<f64>() {
-                Ok(v) if v >= 0.0 => Stamp::Fixed(v),
+            // A formula such as `([Other:Timestamp]+3600)` is evaluated, as in Rainmeter.
+            let v = if ts.trim_start().starts_with('(') { Some(opt.float("TimeStamp", -1.0)) } else { ts.trim().parse::<f64>().ok() };
+            match v {
+                Some(v) if v >= 0.0 => Stamp::Fixed(v),
                 _ => Stamp::Current,
             }
         };
 
+        self.names = LocaleNames::find(&opt.string("FormatLocale", ""));
         let tz = opt.string("TimeZone", "local");
         self.tz = if tz.eq_ignore_ascii_case("local") { TzMode::Local } else { TzMode::Hours(parse_f64_prefix(&tz)) };
         self.dst = opt.bool("DaylightSavingTime", true);
@@ -559,5 +565,24 @@ mod tests {
         t.read_options(&OptionReader { parser: &s.parser, section: "M", sv: None });
         let v = ctx_run(&s, |c| t.update(c));
         assert!(v > 13_300_000_000.0 && v < 14_500_000_000.0, "{v}");
+    }
+
+    #[test]
+    fn format_locale_names() {
+        let utc = 1_760_270_400.0; // 2025-10-12 12:00 UTC, a Sunday
+        let (t, _) = with_clock("[M]\nMeasure=Time\nTimeZone=0\nDaylightSavingTime=0\nFormatLocale=de-DE\nFormat=%A %d %B (%a %b)\n", utc);
+        assert_eq!(t.string_value().unwrap(), "Sonntag 12 Oktober (So Okt)");
+        let (t, _) = with_clock("[M]\nMeasure=Time\nTimeZone=0\nDaylightSavingTime=0\nFormatLocale=ua\nFormat=%A %B\n", utc);
+        assert_eq!(t.string_value().unwrap(), "неділя Жовтень");
+        let (t, _) = with_clock("[M]\nMeasure=Time\nTimeZone=0\nDaylightSavingTime=0\nFormatLocale=xx\nFormat=%a %B\n", utc);
+        assert_eq!(t.string_value().unwrap(), "Sun October");
+    }
+
+    #[test]
+    fn timestamp_formula() {
+        let (t, _) = with_clock("[M]\nMeasure=Time\nTimeStamp=(13300000000+3600)\nFormat=%H\n", 0.0);
+        let (u, _) = with_clock("[M]\nMeasure=Time\nTimeStamp=13300000000\nFormat=%H\n", 0.0);
+        let h = |m: &TimeMeasure| m.string_value().unwrap().parse::<i32>().unwrap();
+        assert_eq!((h(&u) + 1) % 24, h(&t));
     }
 }

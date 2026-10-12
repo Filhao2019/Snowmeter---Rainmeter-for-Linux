@@ -176,7 +176,13 @@ fn parse_kind(s: &str) -> Kind {
 /// Number and string for `kind` from the chosen player (None = no player).
 pub fn value_of(kind: Kind, p: Option<&PlayerData>, dlz: bool) -> (f64, Option<String>) {
     let Some(p) = p else {
-        return (0.0, if matches!(kind, Kind::Duration | Kind::Position) { Some(format_time(0.0, dlz)) } else { None });
+        // As in Rainmeter: text types are empty (not "0") while no player runs.
+        let s = match kind {
+            Kind::Duration | Kind::Position => Some(format_time(0.0, dlz)),
+            Kind::Artist | Kind::Album | Kind::Title | Kind::Genre | Kind::File | Kind::Cover | Kind::Lyrics | Kind::Year => Some(String::new()),
+            _ => None,
+        };
+        return (0.0, s);
     };
     let text = |s: &str| (0.0, Some(s.to_string()));
     match kind {

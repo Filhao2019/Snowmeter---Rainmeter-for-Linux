@@ -121,6 +121,23 @@ pub fn run(cmd: Cmd) -> i32 {
                 1
             }
         },
+        Cmd::Bang { actions, config } => {
+            let config = config.unwrap_or_else(|| "*".into());
+            match ipc::send(&sock, &Request::Bang { config, actions }) {
+                Ok(r) => print_reply(&r),
+                Err(_) => {
+                    eprintln!("snowmeter: not running (start it with `snowmeter`)");
+                    1
+                }
+            }
+        }
+        Cmd::Scale { config, percent } => match ipc::send(&sock, &Request::Scale { config, percent }) {
+            Ok(r) => print_reply(&r),
+            Err(_) => {
+                eprintln!("snowmeter: not running (start it with `snowmeter`)");
+                1
+            }
+        },
         Cmd::Quit => match ipc::send(&sock, &Request::Quit) {
             Ok(r) => print_reply(&r),
             Err(_) => {

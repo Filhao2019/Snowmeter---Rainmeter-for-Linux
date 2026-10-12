@@ -23,5 +23,6 @@ pub mod registry;
 pub mod rmskin;
 pub mod settings;
 pub mod skin;
+pub mod sound;
 
 pub use skin::{render_skin_png, AppRequest, MouseButton, MouseEvent, Skin};

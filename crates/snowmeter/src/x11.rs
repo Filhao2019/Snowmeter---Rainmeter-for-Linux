@@ -106,6 +106,35 @@ pub fn set_wm_state(win: &impl IsA<gtk4::Native>, state: &str, add: bool) {
     }
 }
 
+/// Ask the compositor to blur what is behind the window (KWin reads
+/// `_KDE_NET_WM_BLUR_BEHIND_REGION`; other compositors ignore it). `rects` are
+/// `(x, y, w, h)` in window pixels; `None` removes the request.
+pub fn set_blur_region(win: &impl IsA<gtk4::Native>, rects: Option<&[(i32, i32, i32, i32)]>) {
+    let Some(h) = handle(win) else { return };
+    unsafe {
+        let prop = atom(h.display, "_KDE_NET_WM_BLUR_BEHIND_REGION");
+        match rects {
+            None => {
+                xlib::XDeleteProperty(h.display, h.xid, prop);
+            }
+            Some(r) => {
+                let data: Vec<c_ulong> = r.iter().flat_map(|&(x, y, w, h)| [x as c_ulong, y as c_ulong, w as c_ulong, h as c_ulong]).collect();
+                xlib::XChangeProperty(
+                    h.display,
+                    h.xid,
+                    prop,
+                    xlib::XA_CARDINAL,
+                    32,
+                    xlib::PropModeReplace,
+                    data.as_ptr() as *const c_uchar,
+                    data.len() as c_int,
+                );
+            }
+        }
+        xlib::XFlush(h.display);
+    }
+}
+
 pub fn move_window(win: &impl IsA<gtk4::Native>, x: i32, y: i32) {
     let Some(h) = handle(win) else { return };
     unsafe {

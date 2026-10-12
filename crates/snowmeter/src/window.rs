@@ -39,6 +39,8 @@ struct WinState {
     pointer: (f64, f64),
     tooltip: Option<String>,
     shown: bool,
+    /// Blur behind the window is currently requested from the compositor.
+    blur: bool,
 }
 
 pub struct SkinWindow {
@@ -46,10 +48,16 @@ pub struct SkinWindow {
     pub file: RefCell<String>,
     pub win: gtk4::ApplicationWindow,
     area: gtk4::DrawingArea,
-    popover: gtk4::PopoverMenu,
+    /// The open (or last) context menu; rebuilt on every popup so it is sized
+    /// for its current entries.
+    popover: RefCell<Option<gtk4::PopoverMenu>>,
     actions: gio::SimpleActionGroup,
     pub skin: Rc<RefCell<Skin>>,
     st: RefCell<WinState>,
+    /// Drawing scale (`Scale=` percent / 100), shared with the draw function.
+    scale: Rc<Cell<f64>>,
+    /// Custom menu entries read when the menu last opened (`skin.custom` indexes them).
+    custom: RefCell<Vec<(String, String)>>,
     host: Weak<Inner>,
     alive: Cell<bool>,
     timer_gen: Cell<u32>,
@@ -78,28 +86,32 @@ pub fn install_css() {
 impl SkinWindow {
     pub fn create(host: &Rc<Inner>, config: &str, file: &str, skin: Skin, cfg: ConfigState, anchor: (String, String), start_hidden: bool) -> Rc<SkinWindow> {
         let (w, h) = skin.size();
+        let scale = Rc::new(Cell::new(cfg.scale as f64 / 100.0));
+        let (sw_w, sw_h) = scaled_size((w, h), scale.get());
         let win = gtk4::ApplicationWindow::new(&host.gapp);
         win.set_title(Some(&format!("Snowmeter - {config}")));
         win.set_decorated(false);
         win.set_resizable(false);
         win.add_css_class("snow");
         let area = gtk4::DrawingArea::new();
-        area.set_content_width(w.max(1));
-        area.set_content_height(h.max(1));
+        area.set_content_width(sw_w);
+        area.set_content_height(sw_h);
         win.set_child(Some(&area));
 
         let skin = Rc::new(RefCell::new(skin));
         {
             let skin = skin.clone();
+            let scale = scale.clone();
             area.set_draw_func(move |_, cr, _, _| {
                 if let Ok(s) = skin.try_borrow() {
+                    let k = scale.get();
+                    if (k - 1.0).abs() > f64::EPSILON {
+                        cr.scale(k, k);
+                    }
                     s.render(cr);
                 }
             });
         }
-        let popover = gtk4::PopoverMenu::from_model(Some(&menu::build_model()));
-        popover.set_parent(&area);
-        popover.set_has_arrow(false);
         let group = gio::SimpleActionGroup::new();
         area.insert_action_group("skin", Some(&group));
 
@@ -108,7 +120,7 @@ impl SkinWindow {
             file: RefCell::new(file.to_string()),
             win,
             area,
-            popover,
+            popover: RefCell::new(None),
             actions: group,
             skin,
             st: RefCell::new(WinState {
@@ -123,7 +135,10 @@ impl SkinWindow {
                 pointer: (0.0, 0.0),
                 tooltip: None,
                 shown: !start_hidden,
+                blur: false,
             }),
+            scale,
+            custom: RefCell::new(Vec::new()),
             host: Rc::downgrade(host),
             alive: Cell::new(true),
             timer_gen: Cell::new(0),
@@ -163,6 +178,7 @@ impl SkinWindow {
                     x11::move_window(w, x, y);
                 }
                 this.apply_region();
+                this.apply_blur(true);
             }
         });
     }
@@ -172,7 +188,7 @@ impl SkinWindow {
     fn compute_position(&self) {
         let Some(host) = self.host() else { return };
         let monitors = host.monitors();
-        let (w, h) = self.skin.borrow().size();
+        let (w, h) = self.window_size();
         let mut st = self.st.borrow_mut();
         let size = (w as f64, h as f64);
         let mut p = position::resolve_position(&st.cfg.window_x, &st.cfg.window_y, &st.anchor.0, &st.anchor.1, size, &monitors);
@@ -184,6 +200,28 @@ impl SkinWindow {
 
     pub fn position(&self) -> (i32, i32) {
         self.st.borrow().pos
+    }
+
+    /// Window size in screen pixels: the skin size times the scale.
+    fn window_size(&self) -> (i32, i32) {
+        scaled_size(self.skin.borrow().size(), self.scale.get())
+    }
+
+    pub fn scale_percent(&self) -> u32 {
+        self.st.borrow().cfg.scale
+    }
+
+    /// Resize the skin to `pct` percent; the window keeps its anchor point.
+    pub fn set_scale(self: &Rc<Self>, pct: u32) {
+        let pct = snowmeter_core::settings::clamp_scale(pct as i64);
+        self.st.borrow_mut().cfg.scale = pct;
+        self.scale.set(pct as f64 / 100.0);
+        let (w, h) = self.window_size();
+        self.area.set_content_width(w);
+        self.area.set_content_height(h);
+        self.reposition();
+        self.area.queue_draw();
+        self.update_region(true);
     }
 
     fn place(&self) {
@@ -217,7 +255,7 @@ impl SkinWindow {
     fn store_position_after_move(&self) {
         let Some(host) = self.host() else { return };
         let monitors = host.monitors();
-        let (w, h) = self.skin.borrow().size();
+        let (w, h) = self.window_size();
         let save;
         let (sx, sy);
         {
@@ -298,7 +336,9 @@ impl SkinWindow {
     /// Close the window; timers stop on their next wake-up.
     pub fn destroy(&self) {
         self.alive.set(false);
-        self.popover.unparent();
+        if let Some(p) = self.popover.borrow_mut().take() {
+            p.unparent();
+        }
         self.win.destroy();
     }
 
@@ -344,8 +384,9 @@ impl SkinWindow {
             r
         };
         if resized {
-            self.area.set_content_width(size.0.max(1));
-            self.area.set_content_height(size.1.max(1));
+            let (w, h) = scaled_size(size, self.scale.get());
+            self.area.set_content_width(w);
+            self.area.set_content_height(h);
             self.reposition();
         }
         if dirty || resized {
@@ -358,6 +399,7 @@ impl SkinWindow {
         if interval != self.st.borrow().interval {
             self.arm_timer();
         }
+        self.apply_blur(false);
         if !reqs.is_empty() {
             let reqs: Vec<AppRequest> = reqs;
             if let Some(h) = self.host() {
@@ -411,7 +453,7 @@ impl SkinWindow {
             if !force && self.st.borrow().mask_key == Some(key) {
                 return;
             }
-            (region::mask_rects(w, h, &alpha), Some(key))
+            (region::scale_rects(&region::mask_rects(w, h, &alpha), self.scale.get()), Some(key))
         };
         {
             let mut st = self.st.borrow_mut();
@@ -429,12 +471,39 @@ impl SkinWindow {
             let r = region::to_region(&self.st.borrow().rects);
             surface.set_input_region(Some(&r));
         }
+        if self.st.borrow().blur {
+            self.apply_blur(true);
+        }
+    }
+
+    /// Request (or drop) blur behind the window when the skin's wish changed;
+    /// the blurred area follows the skin's drawn shape (its input region).
+    fn apply_blur(&self, force: bool) {
+        let want = self.skin.borrow().wants_blur();
+        let changed = {
+            let mut st = self.st.borrow_mut();
+            let c = st.blur != want;
+            st.blur = want;
+            c
+        };
+        if !(changed || force) || !x11::is_x11() || !self.win.is_realized() {
+            return;
+        }
+        if want {
+            let rects = self.st.borrow().rects.clone();
+            // Click-through skins have no input rectangles: blur the whole window.
+            x11::set_blur_region(&self.win, Some(if self.st.borrow().cfg.click_through { &[] } else { &rects }));
+        } else if changed {
+            x11::set_blur_region(&self.win, None);
+        }
     }
 
     // ------------------------------------------------------------ input
 
+    /// Widget coordinates to skin coordinates.
     fn local(&self, x: f64, y: f64) -> (f64, f64) {
-        (x, y)
+        let k = self.scale.get();
+        (x / k, y / k)
     }
 
     fn send_mouse(self: &Rc<Self>, ev: MouseEvent) -> bool {
@@ -495,8 +564,16 @@ impl SkinWindow {
         let scroll = gtk4::EventControllerScroll::new(gtk4::EventControllerScrollFlags::BOTH_AXES | gtk4::EventControllerScrollFlags::DISCRETE);
         {
             let weak = Rc::downgrade(self);
-            scroll.connect_scroll(move |_, dx, dy| {
+            scroll.connect_scroll(move |c, dx, dy| {
                 let Some(this) = weak.upgrade() else { return glib::Propagation::Proceed };
+                // Ctrl+wheel resizes the skin (a Snowmeter addition, like browser zoom).
+                if c.current_event_state().contains(gdk::ModifierType::CONTROL_MASK) && dy != 0.0 {
+                    let pct = menu::step_scale(this.scale_percent(), dy < 0.0);
+                    if let Some(h) = this.host() {
+                        h.set_scale(&this.config, pct);
+                    }
+                    return glib::Propagation::Stop;
+                }
                 let (x, y) = this.st.borrow().pointer;
                 let sdx = if dx > 0.0 { 1 } else if dx < 0.0 { -1 } else { 0 };
                 // GTK: dy > 0 scrolls down; the skin API: dy > 0 is up.
@@ -534,9 +611,9 @@ impl SkinWindow {
         }
     }
 
-    fn on_release(self: &Rc<Self>, button: u32, x: f64, y: f64, ctrl: bool) {
+    fn on_release(self: &Rc<Self>, button: u32, wx: f64, wy: f64, ctrl: bool) {
         let Some(btn) = map_button(button) else { return };
-        let (x, y) = self.local(x, y);
+        let (x, y) = self.local(wx, wy);
         match btn {
             MouseButton::Left => {
                 let drag = self.st.borrow_mut().drag.take();
@@ -553,7 +630,7 @@ impl SkinWindow {
             MouseButton::Right => {
                 let handled = self.send_mouse(MouseEvent::Up { button: btn, x, y });
                 if menu::should_show(handled, ctrl) {
-                    self.show_menu(x, y);
+                    self.show_menu(wx, wy, false);
                 }
             }
             _ => {
@@ -572,7 +649,8 @@ impl SkinWindow {
         }
     }
 
-    fn on_motion(self: &Rc<Self>, x: f64, y: f64) {
+    fn on_motion(self: &Rc<Self>, wx: f64, wy: f64) {
+        let (x, y) = self.local(wx, wy);
         self.st.borrow_mut().pointer = (x, y);
         let dragging = self.st.borrow().drag.is_some();
         if dragging {
@@ -635,6 +713,7 @@ impl SkinWindow {
         add_plain("refresh", Box::new(|w| vec![AppRequest::Refresh { config: Some(w.config.clone()) }]));
         add_plain("unload", Box::new(|w| vec![AppRequest::Deactivate { config: w.config.clone() }]));
         add_plain("openfolder", Box::new(|w| vec![AppRequest::OpenOrRun(w.folder().to_string_lossy().into_owned())]));
+        add_plain("edit", Box::new(|w| vec![AppRequest::OpenOrRun(w.skin.borrow().ini_path().to_string_lossy().into_owned())]));
 
         let toggles: [(&str, fn(&ConfigState) -> bool); 3] =
             [("draggable", |c| c.draggable), ("clickthrough", |c| c.click_through), ("keeponscreen", |c| c.keep_on_screen)];
@@ -651,22 +730,105 @@ impl SkinWindow {
             });
             self.actions.add_action(&a);
         }
+
+        // Custom skin actions (`ContextAction`), by index into the list read at popup.
+        let a = gio::SimpleAction::new("custom", Some(glib::VariantTy::INT32));
+        let weak = Rc::downgrade(self);
+        a.connect_activate(move |_, v| {
+            let (Some(this), Some(i)) = (weak.upgrade(), v.and_then(|v| v.get::<i32>())) else { return };
+            let action = this.custom.borrow().get(i.max(0) as usize).map(|(_, a)| a.clone());
+            if let Some(action) = action {
+                this.execute(&action);
+            }
+        });
+        self.actions.add_action(&a);
+
+        // Variants (radio): load another .ini of the same config.
+        let a = gio::SimpleAction::new_stateful("variant", Some(glib::VariantTy::STRING), &self.file.borrow().to_variant());
+        let weak = Rc::downgrade(self);
+        a.connect_change_state(move |act, v| {
+            let (Some(this), Some(v)) = (weak.upgrade(), v) else { return };
+            let Some(file) = v.get::<String>() else { return };
+            act.set_state(v);
+            if let Some(h) = this.host() {
+                h.submit(&this.config, vec![AppRequest::Activate { config: this.config.clone(), file: Some(file) }]);
+            }
+        });
+        self.actions.add_action(&a);
+
+        // Size (radio, percent).
+        let a = gio::SimpleAction::new_stateful("scale", Some(glib::VariantTy::STRING), &self.scale_percent().to_string().to_variant());
+        let weak = Rc::downgrade(self);
+        a.connect_change_state(move |act, v| {
+            let (Some(this), Some(v)) = (weak.upgrade(), v) else { return };
+            let Some(pct) = v.get::<String>().and_then(|p| p.parse::<u32>().ok()) else { return };
+            act.set_state(v);
+            if let Some(h) = this.host() {
+                h.set_scale(&this.config, pct);
+            }
+        });
+        self.actions.add_action(&a);
     }
 
     fn folder(&self) -> std::path::PathBuf {
         self.skin.borrow().ini_path().parent().map(|p| p.to_path_buf()).unwrap_or_default()
     }
 
-    fn show_menu(&self, x: f64, y: f64) {
-        let cfg = self.st.borrow().cfg.clone();
-        for (name, v) in [("draggable", cfg.draggable), ("clickthrough", cfg.click_through), ("keeponscreen", cfg.keep_on_screen)] {
-            if let Some(a) = self.actions.lookup_action(name) {
-                if let Some(a) = a.downcast_ref::<gio::SimpleAction>() {
-                    a.set_state(&v.to_variant());
-                }
+    fn set_action_state(&self, name: &str, v: glib::Variant) {
+        if let Some(a) = self.actions.lookup_action(name) {
+            if let Some(a) = a.downcast_ref::<gio::SimpleAction>() {
+                a.set_state(&v);
             }
         }
-        self.popover.set_pointing_to(Some(&gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
-        self.popover.popup();
     }
+
+    /// `!SkinMenu` / `!SkinCustomMenu`: open at the last pointer position.
+    pub fn popup_menu(&self, custom_only: bool) {
+        let (x, y) = self.st.borrow().pointer;
+        let k = self.scale.get();
+        self.show_menu(x * k, y * k, custom_only);
+    }
+
+    /// Open the context menu at widget coordinates `(x, y)`.
+    fn show_menu(&self, x: f64, y: f64, custom_only: bool) {
+        let custom = self.skin.borrow().context_items();
+        log::debug!("[{}] context menu: {:?}", self.config, custom.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>());
+        if custom_only && custom.iter().all(|(t, _)| t.is_empty()) {
+            return;
+        }
+        let variants = self.host().map(|h| h.variants(&self.config)).unwrap_or_default();
+        let model = menu::build_model(&menu::Spec { custom: &custom, custom_only, variants: &variants });
+        *self.custom.borrow_mut() = custom;
+        let cfg = self.st.borrow().cfg.clone();
+        for (name, v) in [("draggable", cfg.draggable), ("clickthrough", cfg.click_through), ("keeponscreen", cfg.keep_on_screen)] {
+            self.set_action_state(name, v.to_variant());
+        }
+        self.set_action_state("variant", self.file.borrow().to_variant());
+        self.set_action_state("scale", cfg.scale.to_string().to_variant());
+        if let Some(old) = self.popover.borrow_mut().take() {
+            old.unparent();
+        }
+        let popover = gtk4::PopoverMenu::from_model(Some(&model));
+        popover.set_parent(&self.area);
+        popover.set_has_arrow(false);
+        popover.set_pointing_to(Some(&gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
+        popover.popup();
+        // GTK shows the section separators only after the first layout, and on
+        // X11 the popup keeps that first (too short) size: measure it again.
+        let again = popover.downgrade();
+        glib::timeout_add_local_once(Duration::from_millis(50), move || {
+            if let Some(p) = again.upgrade() {
+                if p.is_visible() {
+                    p.queue_resize();
+                    p.present();
+                }
+            }
+        });
+        *self.popover.borrow_mut() = Some(popover);
+    }
+}
+
+/// `size` scaled by `k`, at least 1x1.
+fn scaled_size(size: (i32, i32), k: f64) -> (i32, i32) {
+    (((size.0 as f64) * k).round().max(1.0) as i32, ((size.1 as f64) * k).round().max(1.0) as i32)
 }

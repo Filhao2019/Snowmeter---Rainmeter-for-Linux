@@ -39,6 +39,13 @@ impl WindowType {
     }
 }
 
+/// Allowed `Scale=` range in percent.
+pub const SCALE_RANGE: (u32, u32) = (25, 400);
+
+pub fn clamp_scale(n: i64) -> u32 {
+    n.clamp(SCALE_RANGE.0 as i64, SCALE_RANGE.1 as i64) as u32
+}
+
 /// Per-config state. `active` is the 1-based index of the `.ini` file in the
 /// config folder (registry order); 0 means unloaded.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,6 +61,8 @@ pub struct ConfigState {
     pub load_order: i32,
     /// -2 desktop, -1 bottom, 0 normal, 1 top, 2 topmost.
     pub always_on_top: i32,
+    /// Snowmeter extension: drawing scale in percent (`Scale=`), 100 = as designed.
+    pub scale: u32,
 }
 
 impl Default for ConfigState {
@@ -69,6 +78,7 @@ impl Default for ConfigState {
             alpha_value: 255,
             load_order: 0,
             always_on_top: 0,
+            scale: 100,
         }
     }
 }
@@ -179,6 +189,7 @@ impl Settings {
             alpha_value: get("AlphaValue").and_then(parse_int).map(|n| n.clamp(0, 255) as u8).unwrap_or(d.alpha_value),
             load_order: get("LoadOrder").and_then(parse_int).map(|n| n as i32).unwrap_or(d.load_order),
             always_on_top: get("AlwaysOnTop").and_then(parse_int).map(|n| n as i32).unwrap_or(d.always_on_top),
+            scale: get("Scale").and_then(parse_int).map(clamp_scale).unwrap_or(d.scale),
         })
     }
 
@@ -200,6 +211,9 @@ impl Settings {
         i.set(config, "AlphaValue", &state.alpha_value.to_string());
         i.set(config, "LoadOrder", &state.load_order.to_string());
         i.set(config, "AlwaysOnTop", &state.always_on_top.to_string());
+        if state.scale != 100 || i.get(config, "Scale").is_some() {
+            i.set(config, "Scale", &state.scale.to_string());
+        }
     }
 
     /// `Active=N` only (creates the section with just that key when missing).

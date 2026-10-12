@@ -71,15 +71,16 @@ pub const SUPPORTED_BANGS: &[&str] = &[
     "changezpos", "draggable", "clickthrough", "settransparency", "show", "showfade", "hide", "hidefade", "toggle",
     "togglefade", "refreshgroup", "redrawgroup", "updategroup", "deactivateconfiggroup", "showgroup", "hidegroup",
     "togglegroup", "showfadegroup", "hidefadegroup", "togglefadegroup", "zposgroup", "changezposgroup",
-    "settransparencygroup", "draggablegroup", "clickthroughgroup",
+    "settransparencygroup", "draggablegroup", "clickthroughgroup", "skinmenu", "skincustommenu", "editskin",
+    "enableblur", "disableblur", "toggleblur", "showblur", "hideblur",
 ];
 
 /// Bangs that are accepted but do nothing on Linux (window-manager features,
 /// dialogs and Windows-only effects).
 pub const IGNORED_BANGS: &[&str] = &[
-    "about", "manage", "debug", "skinmenu", "traymenu", "skincustommenu", "editskin", "resetstats", "lsboxhook",
-    "snapedges", "keeponscreen", "autoselectscreen", "setclip", "setwallpaper", "loadlayout", "showblur", "hideblur",
-    "toggleblur", "addblur", "removeblur", "fadeduration", "snapedgesgroup", "keeponscreengroup",
+    "about", "manage", "debug", "traymenu", "resetstats", "lsboxhook",
+    "snapedges", "keeponscreen", "autoselectscreen", "setclip", "setwallpaper", "loadlayout",
+    "addblur", "removeblur", "fadeduration", "snapedgesgroup", "keeponscreengroup",
     "autoselectscreengroup", "fadedurationgroup",
 ];
 
@@ -201,6 +202,12 @@ impl Skin {
             self.push_request(AppRequest::EmptyTrash { confirm: true });
         } else if expanded == crate::measures::recycle::EMPTY_SILENT {
             self.push_request(AppRequest::EmptyTrash { confirm: false });
+        } else if let Some((looped, file)) = crate::sound::parse(&expanded) {
+            if file.is_empty() {
+                crate::sound::stop();
+            } else {
+                crate::sound::play(&crate::paths::resolve_path(&self.skin_dir, &file), looped);
+            }
         } else if !expanded.trim().is_empty() {
             self.push_request(AppRequest::OpenOrRun(expanded));
         }
@@ -432,6 +439,7 @@ impl Skin {
             "updatemeasure" | "updatemeasuregroup" => {
                 for i in self.measure_targets(arg(0), name.ends_with("group")) {
                     let (acts, n) = self.step_measure(i, true);
+                    self.feed_children(i);
                     for a in acts {
                         self.execute_in(&a, Some(&n));
                     }
@@ -644,9 +652,23 @@ impl Skin {
                 }
             }
             "quit" => self.push_request(AppRequest::Quit),
-            "about" | "manage" | "debug" | "skinmenu" | "traymenu" | "skincustommenu" | "editskin" | "resetstats"
+            "enableblur" | "showblur" => self.blur_override = Some(true),
+            "disableblur" | "hideblur" => self.blur_override = Some(false),
+            "toggleblur" => self.blur_override = Some(!self.wants_blur()),
+            "skinmenu" | "skincustommenu" => {
+                let t = target(0, &args);
+                self.push_request(AppRequest::Menu { config: t, custom_only: name == "skincustommenu" });
+            }
+            "editskin" => {
+                let path = if args.is_empty() { Some(self.ini_path.to_string_lossy().into_owned()) } else { None };
+                match path {
+                    Some(p) => self.push_request(AppRequest::OpenOrRun(p)),
+                    None => self.push_request(AppRequest::EditSkin { config: target(0, &args), file: args.get(1).cloned() }),
+                }
+            }
+            "about" | "manage" | "debug" | "traymenu" | "resetstats"
             | "lsboxhook" | "snapedges" | "keeponscreen" | "autoselectscreen" | "setclip" | "setwallpaper"
-            | "loadlayout" | "showblur" | "hideblur" | "toggleblur" | "addblur" | "removeblur" | "fadeduration" => {
+            | "loadlayout" | "addblur" | "removeblur" | "fadeduration" => {
                 log::debug!("[{own}] !{name} is not supported on Linux (ignored)");
             }
             _ => {

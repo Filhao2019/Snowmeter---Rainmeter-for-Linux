@@ -1,0 +1,9 @@
+[Variables]
+tWidgets=Widget
+tExtras=Extra
+tAppearence=Aspetto
+tLanguage=Lingua 
+tBattery=Batteria
+tSupport=Supporto
+tAbout=Informazioni
+tWhatsNew=Novità

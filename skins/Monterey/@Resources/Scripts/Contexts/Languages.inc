@@ -1,0 +1,39 @@
+[Variables]
+LanguagesContextTitle=#en#
+LanguagesContextAction=[!WriteKeyValue Variables "Language" "en" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle2=#de#
+LanguagesContextAction2=[!WriteKeyValue Variables "Language" "de" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle3=#es#
+LanguagesContextAction3=[!WriteKeyValue Variables "Language" "es" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle4=#fr#
+LanguagesContextAction4=[!WriteKeyValue Variables "Language" "fr" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle5=#it#
+LanguagesContextAction5=[!WriteKeyValue Variables "Language" "it" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle6=#pt#
+LanguagesContextAction6=[!WriteKeyValue Variables "Language" "pt" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle7=#ru#
+LanguagesContextAction7=[!WriteKeyValue Variables "Language" "ru" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle8=#ua#
+LanguagesContextAction8=[!WriteKeyValue Variables "Language" "ua" "#@#Variables\Global.inc"][!RefreshGroup Monterey]
+LanguagesContextTitle9=
+
+[SetLanguageTickMark]
+Measure=String
+String=#Language#
+DynamicVariables=1
+IfMatch=^en$
+IfMatchAction=[!SetVariable LanguagesContextTitle "#en#  [\x2714]"]
+IfMatch2=^de$
+IfMatchAction2=[!SetVariable LanguagesContextTitle2 "#de#  [\x2714]"]
+IfMatch3=^es$
+IfMatchAction3=[!SetVariable LanguagesContextTitle3 "#es#  [\x2714]"]
+IfMatch4=^fr$
+IfMatchAction4=[!SetVariable LanguagesContextTitle4 "#fr#  [\x2714]"]
+IfMatch5=^it$
+IfMatchAction5=[!SetVariable LanguagesContextTitle5 "#it#  [\x2714]"]
+IfMatch6=^pt$
+IfMatchAction6=[!SetVariable LanguagesContextTitle6 "#pt#  [\x2714]"]
+IfMatch7=^ru$
+IfMatchAction7=[!SetVariable LanguagesContextTitle7 "#ru#  [\x2714]"]
+IfMatch8=^ua$
+IfMatchAction8=[!SetVariable LanguagesContextTitle8 "#ua#  [\x2714]"]

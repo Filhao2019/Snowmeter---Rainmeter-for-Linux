@@ -384,7 +384,23 @@ fn simple_hash(s: &str) -> u64 {
 /// Install a gallery entry. `settings` is reloaded from disk after the importer ran.
 pub fn install(env: &Environment, settings: &mut Settings, entry: &Entry, opts: &InstallOptions) -> Result<InstallReport, GalleryError> {
     if !opts.force && is_installed(env, entry) {
-        return Err(GalleryError::AlreadyInstalled(entry.name.clone()));
+        // Bundled folders are copied at start-up without their downloadable
+        // fonts; installing again fetches just the fonts and keeps the files.
+        if entry.font_urls.is_empty() {
+            return Err(GalleryError::AlreadyInstalled(entry.name.clone()));
+        }
+        let root = find_dir_ci(&env.skins_dir, &entry.root_name())
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| entry.root_name());
+        let mut rep = InstallReport { name: entry.name.clone(), roots: vec![root], ..Default::default() };
+        for (i, url) in entry.font_urls.iter().enumerate() {
+            match install_fonts(env, opts, rep.roots.first(), url) {
+                Ok(mut v) => rep.fonts.append(&mut v),
+                Err(e) => rep.warnings.push(format!("font {}: {e}", i + 1)),
+            }
+        }
+        rep.notes.push("already installed: only its fonts were downloaded".into());
+        return Ok(rep);
     }
     fs::create_dir_all(&env.skins_dir)?;
     let mut rep = InstallReport { name: entry.name.clone(), ..Default::default() };

@@ -49,6 +49,10 @@ pub enum AppRequest {
     EmptyTrash { confirm: bool },
     /// Show a text entry over the skin (native InputText plugin).
     InputText { config: String, spec: crate::measures::inputtext::InputTextSpec },
+    /// `!SkinMenu` / `!SkinCustomMenu`: open the skin's context menu at the pointer.
+    Menu { config: String, custom_only: bool },
+    /// `!EditSkin Config [File]`: open another skin's `.ini` in the text editor.
+    EditSkin { config: String, file: Option<String> },
 }
 
 pub(crate) struct MeasureEntry {
@@ -119,6 +123,8 @@ pub struct Skin {
     pub(crate) ini_path: PathBuf,
     pub(crate) parser: ConfigParser,
     pub(crate) options: SkinOptions,
+    /// Set by `!EnableBlur` / `!DisableBlur` / `!ToggleBlur`; overrides the rest.
+    pub(crate) blur_override: Option<bool>,
     pub(crate) res: Resources,
     pub(crate) measures: Vec<MeasureEntry>,
     pub(crate) meters: Vec<Meter>,
@@ -145,6 +151,8 @@ pub struct Skin {
 /// Largest skin side we will draw (Cairo's hard limit is 32767; stay far below
 /// it so a bogus `SkinWidth`/`X` cannot allocate gigabytes).
 pub const MAX_SKIN_SIDE: i32 = 8192;
+/// Rainmeter allows this many custom context menu entries (IDM range).
+pub const CONTEXT_ITEMS_MAX: usize = 30;
 
 pub(crate) fn normalize_config(s: &str) -> String {
     s.replace('/', "\\").trim_matches('\\').to_string()
@@ -191,6 +199,7 @@ impl Skin {
             ini_path,
             parser,
             options,
+            blur_override: None,
             res,
             measures: Vec::new(),
             meters: Vec::new(),
@@ -319,6 +328,46 @@ impl Skin {
         &self.ini_path
     }
 
+    /// Blur behind the window: `!EnableBlur`-style bangs win, then a blur
+    /// plugin measure (FrostedGlass, EasyBlur), then `[Rainmeter] Blur=1`.
+    pub fn wants_blur(&self) -> bool {
+        if let Some(b) = self.blur_override {
+            return b;
+        }
+        let from_measures = self.measures.iter().filter_map(|e| e.m.try_borrow().ok()?.wants_blur()).reduce(|a, b| a || b);
+        from_measures.unwrap_or(self.options.blur)
+    }
+
+    /// Custom context menu entries from `[Rainmeter] ContextTitle`/`ContextAction`,
+    /// `ContextTitle2`/`ContextAction2`, ... read now, so variables set right
+    /// before `!SkinCustomMenu` apply. As in Rainmeter: the list ends at the
+    /// first empty title or empty action, a title of only dashes is a separator
+    /// (returned with an empty title), long titles are cut to 30 characters.
+    pub fn context_items(&self) -> Vec<(String, String)> {
+        let view = View { measures: &self.measures, geom: &self.geom };
+        let opt = OptionReader::new(&self.parser, "Rainmeter", Some(&view));
+        let mut out = Vec::new();
+        for i in 1..=CONTEXT_ITEMS_MAX {
+            let (tk, ak) = if i == 1 { ("ContextTitle".to_string(), "ContextAction".to_string()) } else { (format!("ContextTitle{i}"), format!("ContextAction{i}")) };
+            let title = opt.string(&tk, "");
+            let action = opt.string(&ak, "");
+            let title = title.trim();
+            let separator = !title.is_empty() && title.chars().all(|c| c == '-');
+            if title.is_empty() || (action.trim().is_empty() && !separator) {
+                break;
+            }
+            let title = if separator {
+                String::new()
+            } else if title.chars().count() > 30 {
+                title.chars().take(27).chain("...".chars()).collect()
+            } else {
+                title.to_string()
+            };
+            out.push((title, action));
+        }
+        out
+    }
+
     pub fn parser(&self) -> &ConfigParser {
         &self.parser
     }
@@ -409,10 +458,32 @@ impl Skin {
         }
     }
 
+    /// A WebParser that just got new data updates its child measures at once
+    /// (whatever their UpdateDivider), so its FinishAction and the rest of the
+    /// pass see the new values: in Rainmeter the parent pushes results to them.
+    pub(crate) fn feed_children(&mut self, i: usize) {
+        let fresh = self.measures[i].m.try_borrow_mut().map(|mut m| m.take_published()).unwrap_or(false);
+        if !fresh {
+            return;
+        }
+        let parent = self.measures[i].name.clone();
+        let kids: Vec<usize> = (0..self.measures.len())
+            .filter(|&j| j != i && self.measures[j].m.try_borrow().ok().and_then(|m| m.data_parent()).is_some_and(|p| p.eq_ignore_ascii_case(&parent)))
+            .collect();
+        for j in kids {
+            let (acts, name) = self.step_measure(j, true);
+            self.feed_children(j);
+            for a in acts {
+                self.execute_in(&a, Some(&name));
+            }
+        }
+    }
+
     pub(crate) fn update_cycle(&mut self, force: bool) {
         self.counter += 1;
         for i in 0..self.measures.len() {
             let (acts, name) = self.step_measure(i, force);
+            self.feed_children(i);
             for a in acts {
                 self.execute_in(&a, Some(&name));
             }

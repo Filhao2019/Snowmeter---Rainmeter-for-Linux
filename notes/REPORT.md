@@ -22,15 +22,15 @@ In another terminal (the app keeps running):
 cd ~/linux-rainmeter/snowmeter
 ./target/release/snowmeter list                                  # skins and which are active
 ./target/release/snowmeter import ~/Downloads/SomeSkin.rmskin     # install a Windows .rmskin (also .zip or a folder)
-./target/release/snowmeter check "illustro\Clock"                # compatibility report, no window
-./target/release/snowmeter load "illustro\Clock"                 # show a skin (optionally: load "illustro\Disk" "2 Disks.ini")
-./target/release/snowmeter unload "illustro\Clock"
+./target/release/snowmeter check "Snowmeter\Weekday"                # compatibility report, no window
+./target/release/snowmeter load "Snowmeter\Weekday"                 # show a skin (optionally: load "illustro\Disk" "2 Disks.ini")
+./target/release/snowmeter unload "Snowmeter\Weekday"
 ./target/release/snowmeter refresh                               # refresh all (or one config)
 ./target/release/snowmeter render "Snowmeter\Weekday" --out /tmp/w.png   # headless PNG, no window
 ./target/release/snowmeter quit
 ```
 
-To try the default Rainmeter skins: `cp -r ~/linux-rainmeter/sample-skins/Skins/illustro ~/.config/snowmeter/skins/` then `snowmeter load "illustro\Clock"` (or import them as a package). Skins live in `~/.config/snowmeter/skins/` (same layout as Rainmeter's `Skins` folder); positions and state in `~/.config/snowmeter/snowmeter.ini`. Right-click a widget for Refresh / Unload / Draggable (lock) / Click-through / Keep on screen / Open folder; Ctrl+right-click always opens that menu. A tray icon offers the same plus a skin list and Quit. Optional: `cargo install --path crates/snowmeter` to get `snowmeter` on your PATH.
+To try the default Rainmeter skins: `cp -r ~/linux-rainmeter/sample-skins/Skins/illustro ~/.config/snowmeter/skins/` then `snowmeter load "Snowmeter\Weekday"` (or import them as a package). Skins live in `~/.config/snowmeter/skins/` (same layout as Rainmeter's `Skins` folder); positions and state in `~/.config/snowmeter/snowmeter.ini`. Right-click a widget for Refresh / Unload / Draggable (lock) / Click-through / Keep on screen / Open folder; Ctrl+right-click always opens that menu. A tray icon offers the same plus a skin list and Quit. Optional: `cargo install --path crates/snowmeter` to get `snowmeter` on your PATH.
 
 ## What was verified (with evidence)
 

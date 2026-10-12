@@ -4,11 +4,13 @@
 pub mod actiontimer;
 pub mod activenet;
 pub mod activetitle;
+pub mod appvolume;
 pub mod audiolevel;
 pub mod audio;
 pub mod base;
 pub mod bgshared;
 pub mod calc;
+pub mod chameleon;
 pub mod configactive;
 pub mod cosmetic;
 pub mod disk;
@@ -81,6 +83,10 @@ pub trait MeasureImpl {
     }
     /// `!CommandMeasure` arguments.
     fn command(&mut self, _args: &str) {}
+    /// Window blur plugins (FrostedGlass, EasyBlur): `Some(on)`; others `None`.
+    fn wants_blur(&self) -> Option<bool> {
+        None
+    }
 
     /// Range the measure dictates regardless of `MinValue`/`MaxValue` options.
     fn forced_min(&self) -> Option<f64> {
@@ -112,6 +118,14 @@ pub trait MeasureImpl {
     /// Actions (bangs) queued by the implementation, run by the skin.
     fn take_actions(&mut self) -> Vec<String> {
         Vec::new()
+    }
+    /// WebParser: true once after new data was published for child measures.
+    fn take_published(&mut self) -> bool {
+        false
+    }
+    /// WebParser child: the parent measure it reads from (`URL=[Parent]`).
+    fn data_parent(&self) -> Option<String> {
+        None
     }
     /// Text-entry requests queued by `!CommandMeasure` (InputText).
     fn take_input_requests(&mut self) -> Vec<inputtext::InputTextSpec> {
@@ -431,6 +445,12 @@ impl Measure {
         v.extend(self.imp.take_actions());
         v
     }
+    pub fn take_published(&mut self) -> bool {
+        self.imp.take_published()
+    }
+    pub fn data_parent(&self) -> Option<String> {
+        self.imp.data_parent()
+    }
 
     /// Mouse plugin hook; other measures ignore pointer events.
     pub fn pointer_event(&mut self, ev: &crate::skin::MouseEvent, size: (f64, f64), pos: (f64, f64)) -> Vec<String> {
@@ -637,6 +657,14 @@ impl Measure {
 
     pub fn is_disabled(&self) -> bool {
         self.disabled
+    }
+    /// Blur plugins only: whether this (enabled) measure asks for window blur.
+    pub fn wants_blur(&self) -> Option<bool> {
+        if self.disabled {
+            None
+        } else {
+            self.imp.wants_blur()
+        }
     }
     pub fn is_paused(&self) -> bool {
         self.paused

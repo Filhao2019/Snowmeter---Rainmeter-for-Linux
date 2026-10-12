@@ -1,16 +1,16 @@
-//! Windows-only cosmetic plugins that make no sense on Linux and become
-//! harmless stand-ins: window blur (EasyBlur, FrostedGlass) does nothing, and
-//! the colour sources (Chameleon, SysColor, MeterialYou) answer from a fixed
-//! dark palette so skins keep their layout and stay readable.
+//! Windows cosmetic plugins: window blur (EasyBlur, FrostedGlass) asks the
+//! window for blur-behind (honoured by compositors that support it, such as
+//! KWin), and the system colour sources (SysColor, MeterialYou) answer from a
+//! fixed dark palette so skins keep their layout and stay readable.
+//! (Chameleon has its own measure in `chameleon.rs`.)
 
 use super::{MeasureCtx, MeasureImpl};
 use crate::parser::OptionReader;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Flavor {
-    /// EasyBlur / FrostedGlass: no value, every command accepted and ignored.
+    /// EasyBlur / FrostedGlass: no value; asks for window blur unless turned off.
     Blur,
-    Chameleon,
     SysColor,
     MeterialYou,
 }
@@ -18,22 +18,6 @@ pub enum Flavor {
 type Rgb = (u8, u8, u8);
 
 /// First rule whose keyword occurs in the (lowercase) request wins.
-const CHAMELEON: &[(&str, Rgb)] = &[
-    ("dark", (36, 41, 56)),
-    ("light", (216, 222, 233)),
-    ("palette1", (129, 161, 193)),
-    ("palette2", (136, 192, 208)),
-    ("palette3", (163, 190, 140)),
-    ("palette4", (235, 203, 139)),
-    ("palette5", (191, 97, 106)),
-    ("1", (129, 161, 193)),
-    ("2", (136, 192, 208)),
-    ("3", (163, 190, 140)),
-    ("4", (235, 203, 139)),
-    ("5", (191, 97, 106)),
-];
-const CHAMELEON_DEFAULT: Rgb = (94, 129, 172);
-
 const SYSCOLOR: &[(&str, Rgb)] = &[
     ("foreground", (255, 255, 255)),
     ("text", (255, 255, 255)),
@@ -106,12 +90,19 @@ pub struct CosmeticMeasure {
     flavor: Flavor,
     text: Option<String>,
     log: Option<String>,
+    /// Blur flavor: whether the skin wants blur behind its window now.
+    blur: bool,
 }
 
 impl CosmeticMeasure {
     pub fn new(flavor: Flavor) -> CosmeticMeasure {
-        CosmeticMeasure { flavor, text: None, log: None }
+        CosmeticMeasure { flavor, text: None, log: None, blur: false }
     }
+}
+
+/// FrostedGlass `Type=None` / EasyBlur `Blur=0` (and similar) turn blur off.
+fn blur_off(v: &str) -> bool {
+    matches!(v.trim().to_ascii_lowercase().as_str(), "none" | "0" | "off" | "false" | "disabled" | "disable")
 }
 
 impl MeasureImpl for CosmeticMeasure {
@@ -119,9 +110,9 @@ impl MeasureImpl for CosmeticMeasure {
         let (table, default, fmt_key) = match self.flavor {
             Flavor::Blur => {
                 self.text = None;
+                self.blur = !blur_off(&opt.string("Type", "Blur")) && !blur_off(&opt.string("Blur", "1"));
                 return;
             }
-            Flavor::Chameleon => (CHAMELEON, CHAMELEON_DEFAULT, "Format"),
             Flavor::SysColor => (SYSCOLOR, SYSCOLOR_DEFAULT, "Format"),
             Flavor::MeterialYou => (MATERIAL, MATERIAL_DEFAULT, "Format"),
         };
@@ -139,7 +130,6 @@ impl MeasureImpl for CosmeticMeasure {
         self.text = Some(format_rgb(lookup(table, default, &request), &fmt));
         if self.log.is_none() {
             let who = match self.flavor {
-                Flavor::Chameleon => "Chameleon",
                 Flavor::SysColor => "SysColor",
                 _ => "MeterialYou",
             };
@@ -154,6 +144,26 @@ impl MeasureImpl for CosmeticMeasure {
 
     fn string_value(&self) -> Option<String> {
         self.text.clone()
+    }
+
+    fn wants_blur(&self) -> Option<bool> {
+        (self.flavor == Flavor::Blur).then_some(self.blur)
+    }
+
+    fn command(&mut self, args: &str) {
+        if self.flavor != Flavor::Blur {
+            return;
+        }
+        // FrostedGlass "Type None|Blur|Acrylic", EasyBlur "Blur 0|1", plus Enable/Disable/Toggle.
+        let a = args.trim().to_ascii_lowercase();
+        let last = a.split_whitespace().last().unwrap_or("");
+        self.blur = match a.split_whitespace().next().unwrap_or("") {
+            "toggle" | "toggleblur" => !self.blur,
+            "disable" | "disableblur" => false,
+            "enable" | "enableblur" => true,
+            "type" | "blur" | "settype" => !blur_off(last),
+            _ => self.blur,
+        };
     }
 }
 
@@ -171,8 +181,6 @@ mod tests {
 
     #[test]
     fn colour_lookup() {
-        assert_eq!(lookup(CHAMELEON, CHAMELEON_DEFAULT, "Dark"), (36, 41, 56));
-        assert_eq!(lookup(CHAMELEON, CHAMELEON_DEFAULT, "whatever"), CHAMELEON_DEFAULT);
         assert_eq!(lookup(MATERIAL, MATERIAL_DEFAULT, "OnPrimaryContainer"), (214, 227, 255));
         assert_eq!(lookup(MATERIAL, MATERIAL_DEFAULT, "on_surface"), (227, 226, 230));
         assert_eq!(lookup(SYSCOLOR, SYSCOLOR_DEFAULT, "Background"), (32, 32, 32));
@@ -183,11 +191,26 @@ mod tests {
 
     #[test]
     fn measures_answer_with_colours() {
-        assert_eq!(text(Flavor::Chameleon, "[M]\nMeasure=Plugin\nPlugin=Chameleon.dll\nType=Color\nColor=Dark\n").as_deref(), Some("36,41,56"));
         assert_eq!(text(Flavor::SysColor, "[M]\nMeasure=Plugin\nPlugin=SysColor\nType=Foreground\nFormat=Hex\n").as_deref(), Some("FFFFFF"));
         assert_eq!(text(Flavor::MeterialYou, "[M]\nMeasure=Plugin\nPlugin=MeterialYou\nType=Primary\n").as_deref(), Some("169,199,255"));
         assert_eq!(text(Flavor::Blur, "[M]\nMeasure=Plugin\nPlugin=EasyBlur\nBlur=1\n"), None);
         assert_eq!(text(Flavor::Blur, "[M]\nMeasure=Plugin\nPlugin=FrostedGlass\nType=Blur\n"), None);
+    }
+
+    #[test]
+    fn blur_requests() {
+        let s = skin("[M]\nMeasure=Plugin\nPlugin=FrostedGlass\nType=Acrylic\n[N]\nMeasure=Plugin\nPlugin=FrostedGlass\nType=None\n");
+        let mut m = CosmeticMeasure::new(Flavor::Blur);
+        m.read_options(&OptionReader { parser: &s.parser, section: "M", sv: None });
+        assert_eq!(m.wants_blur(), Some(true));
+        m.command("Type None");
+        assert_eq!(m.wants_blur(), Some(false));
+        m.command("Toggle");
+        assert_eq!(m.wants_blur(), Some(true));
+        let mut n = CosmeticMeasure::new(Flavor::Blur);
+        n.read_options(&OptionReader { parser: &s.parser, section: "N", sv: None });
+        assert_eq!(n.wants_blur(), Some(false));
+        assert_eq!(CosmeticMeasure::new(Flavor::SysColor).wants_blur(), None);
     }
 
     #[test]

@@ -1,0 +1,9 @@
+[Variables]
+en=English
+de=Deutsch
+es=Español
+fr=Français
+it=Italiano
+pt=Português
+ru=Русский
+ua=Український

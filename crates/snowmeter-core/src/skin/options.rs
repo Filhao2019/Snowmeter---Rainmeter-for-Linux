@@ -8,6 +8,8 @@ use crate::render::image::ImageOptions;
 #[derive(Clone, Debug)]
 pub struct SkinOptions {
     pub syntax_version: i64,
+    /// `Blur=1`: blur behind the window (where the compositor supports it).
+    pub blur: bool,
     pub accurate_text: bool,
     pub skin_width: i32,
     pub skin_height: i32,
@@ -97,6 +99,7 @@ impl SkinOptions {
             solid_color2: opt.color("SolidColor2", solid_color),
             gradient_angle: opt.float("GradientAngle", 0.0),
             dynamic_window_size: opt.bool("DynamicWindowSize", false),
+            blur: opt.bool("Blur", false),
             update_ms,
             default_update_divider: opt.int("DefaultUpdateDivider", 1),
             on_refresh: opt.action("OnRefreshAction"),

@@ -70,7 +70,8 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("activenet", || Box::new(super::activenet::ActiveNet::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
-    ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),
+    ("chameleon", || Box::new(super::chameleon::Chameleon::new())),
+    ("appvolume", || Box::new(super::appvolume::AppVolume::new())),
     ("syscolor", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::SysColor))),
     ("meterialyou", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::MeterialYou))),
 ];
@@ -80,6 +81,8 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
 const INTERNAL_NAMES: &[(&str, &str)] = &[
     ("webparser", "webparser"),
     ("nowplaying", "nowplaying"),
+    ("mediaplayer", "nowplaying"),
+    ("appvolume", "appvolume"),
     ("webnowplaying", "webnowplaying"),
     ("gpmdpplugin", "webnowplaying"),
     ("gpmdp", "webnowplaying"),

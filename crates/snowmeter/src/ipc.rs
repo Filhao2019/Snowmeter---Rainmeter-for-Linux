@@ -14,6 +14,10 @@ pub enum Request {
     Unload { config: String },
     List,
     Refresh { config: Option<String> },
+    /// Run Rainmeter bangs in a skin (`*` = every skin).
+    Bang { config: String, actions: String },
+    /// Draw a skin at `percent` of its size.
+    Scale { config: String, percent: u32 },
     /// Re-read the skins folder and `snowmeter.ini` (after an import).
     Rescan,
     Quit,
@@ -30,6 +34,8 @@ impl Request {
             Request::List => "list".into(),
             Request::Refresh { config: None } => "refresh".into(),
             Request::Refresh { config: Some(c) } => format!("refresh\t{c}"),
+            Request::Scale { config, percent } => format!("scale\t{config}\t{percent}"),
+            Request::Bang { config, actions } => format!("bang\t{config}\t{}", actions.replace(['\t', '\n'], " ")),
             Request::Rescan => "rescan".into(),
             Request::Quit => "quit".into(),
         }
@@ -47,6 +53,12 @@ impl Request {
             "unload" => Ok(Request::Unload { config: a.ok_or("unload needs a config name")? }),
             "list" => Ok(Request::List),
             "refresh" => Ok(Request::Refresh { config: a }),
+            "bang" => Ok(Request::Bang { config: a.ok_or("bang needs a config name")?, actions: b.ok_or("bang needs an action")? }),
+            "scale" => {
+                let config = a.ok_or("scale needs a config name")?;
+                let percent = b.as_deref().map(|p| p.trim().trim_end_matches('%')).and_then(|p| p.parse::<u32>().ok()).ok_or("scale needs a size in percent")?;
+                Ok(Request::Scale { config, percent })
+            }
             "rescan" => Ok(Request::Rescan),
             "quit" => Ok(Request::Quit),
             "" => Err("empty request".into()),
@@ -223,6 +235,8 @@ mod tests {
             Request::List,
             Request::Refresh { config: None },
             Request::Refresh { config: Some("a\\b".into()) },
+            Request::Scale { config: "a\\b".into(), percent: 150 },
+            Request::Bang { config: "*".into(), actions: "[!Refresh]".into() },
             Request::Rescan,
             Request::Quit,
         ];

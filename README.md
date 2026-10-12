@@ -26,6 +26,36 @@ options, so they also run on Windows Rainmeter 4.5. They share one palette in
 To use them, copy `skins/Snowmeter` into `~/.config/snowmeter/skins/`, then
 `snowmeter load 'Snowmeter\Weekday'`.
 
+Two more skins ship in `skins/` (copied into your skins folder on start):
+
+- **Monterey** (`skins/Monterey`): macOS Monterey widgets ported from
+  creewick's Rainmeter skin: Clock (any time zone), Calendar, Weather
+  (Open-Meteo with city search), Music (Spotify and any MPRIS player), Volume
+  (system and per-app) and Timer, each in Small 1x1, Medium 2x2, Wide 4x2 and
+  Large 4x4; Light, Dark, Auto, Color (from your wallpaper) and Blur themes;
+  eight languages. Open `Monterey\Settings.ini` to turn widgets on and pick a
+  theme, language and units; right-click a widget for its sizes.
+- **Mond Remake** (`skins/MondRemake`): an original, lightweight remake of the
+  Mond look: big spaced day name with date and time, a music player and a
+  weather widget with a 5-day forecast. Right-click for 12/24-hour time,
+  units, city search and the settings file (location, colours, player,
+  language).
+
+The original Mond package is still available with `snowmeter install Mond`.
+
+## Resizing and menus
+
+Every skin can be resized, whatever its author planned: right-click >
+**Size** (50% to 300%), Ctrl+mouse wheel over the skin, or
+`snowmeter scale <config> <percent>`. The size is remembered per skin
+(`Scale=` in `snowmeter.ini`).
+
+The right-click menu shows the skin's own entries (`ContextTitle` /
+`ContextAction`), its **Variants** (other `.ini` files of the config, e.g.
+Monterey's sizes), **Size**, **Edit skin** and the usual toggles. Skins that
+open their own menu (`!SkinCustomMenu`) still give you Snowmeter's menu with
+Ctrl+right-click.
+
 ## Requirements
 
 - Rust (stable) installed with [rustup](https://rustup.rs/)
@@ -71,6 +101,8 @@ instance over a Unix socket (`$XDG_RUNTIME_DIR/snowmeter.sock`).
 | `snowmeter install <name> [--force]` | installs a gallery skin (bundled or downloaded from the author), prints the compatibility report, asks the instance to rescan | installs locally |
 | `snowmeter check <skin>` | prints a compatibility report, no window | same |
 | `snowmeter render <config> [ini] --out f.png` | headless render to PNG | same |
+| `snowmeter scale <config> <percent>` | resizes a loaded skin (25-400%) and remembers it | error "not running" |
+| `snowmeter bang "<bangs>" [config]` | runs Rainmeter bangs in a skin (all skins without a config) | error "not running" |
 
 Right-click a widget for Refresh, Unload, Draggable, Click-through, Keep on
 screen and Open skin folder. A skin's own `RightMouseUpAction` replaces the
@@ -102,10 +134,10 @@ offers Refresh all, Load skin, Get skins (gallery entries not installed yet; ins
 |---|---|---|---|
 | Measures | CPU, PhysicalMemory, SwapMemory, Memory, FreeDiskSpace, Uptime, Time, Calc, String, NetIn, NetOut, NetTotal, Registry (stub values), Loop | Plugin measures (see below) | Windows-only measures such as the Windows performance counter plugins |
 | Meters | String, Image, Bar, Bitmap, Button, Histogram, Line, Rotator, Roundline, Shape | Shape: gradient gamma is not applied, triangle line caps draw as square | none of the stock 4.5 types is missing |
-| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin), NowPlaying (MPRIS over D-Bus; every `PlayerName` maps to the best MPRIS player), WebNowPlaying and SpotifyPlugin (MPRIS views; Spotify is preferred), Process, UsageMonitor, FolderInfo, FileView, ActionTimer, ConfigActive, RunCommand, Mouse, PingPlugin (`ping -c 1` on a worker thread), WifiStatus (`nmcli`/`iw`, `/proc/net/wireless` fallback), Win7AudioPlugin (`wpctl`, `pactl` fallback; volume is only changed by a skin's `!CommandMeasure`), QuotePlugin, GetActiveTitle (X11 `_NET_ACTIVE_WINDOW`; empty on Wayland-only sessions), ActiveNet (adapter, CPU topology and battery types from `/sys`/`/proc`), CoreTemp / SpeedFan / HWiNFO (see the hwmon mapping below) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | HotKey, iTunes, MSIAfterburner, other third-party DLLs (shown as placeholders; the skin still loads) |
-| Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue | window-position bangs depend on the compositor | bangs accepted and ignored: About, Manage, Debug, SkinMenu, TrayMenu, EditSkin, SetWallpaper, LoadLayout, Blur bangs, SnapEdges, `!KeepOnScreen` and similar Windows window features (keep-on-screen is available per skin in the right-click menu, and `Load=` layouts are applied when a `.rmskin` is installed) |
-| Variables | `#var#`, `[Measure]`, `[&Measure:]`, built-ins (`#@#`, `#CURRENTPATH#`, `#SCREENAREAWIDTH#` ...), `@Include`, formulas `( )` | | |
-| Skin windows | transparent windows, backgrounds with 9-slice margins, dragging, click-through, tooltips text, per-skin position saved | Z-order: Desktop/Below work on X11 and layer-shell; Normal everywhere | Windows blur, Aero effects, snap to edges |
+| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin), NowPlaying (MPRIS over D-Bus; every `PlayerName` maps to the best MPRIS player), WebNowPlaying and SpotifyPlugin (MPRIS views; Spotify is preferred), Process, UsageMonitor, FolderInfo, FileView, ActionTimer, ConfigActive, RunCommand, Mouse, PingPlugin (`ping -c 1` on a worker thread), WifiStatus (`nmcli`/`iw`, `/proc/net/wireless` fallback), Win7AudioPlugin (`wpctl`, `pactl` fallback; volume is only changed by a skin's `!CommandMeasure`), QuotePlugin, GetActiveTitle (X11 `_NET_ACTIVE_WINDOW`; empty on Wayland-only sessions), ActiveNet (adapter, CPU topology and battery types from `/sys`/`/proc`), CoreTemp / SpeedFan / HWiNFO (see the hwmon mapping below), Chameleon (colours of the wallpaper on GNOME, Cinnamon, MATE, KDE, Xfce, feh or nitrogen, or of an image file), AppVolume (per-app volume and mute over `pactl`), MediaPlayer (same as NowPlaying), FrostedGlass / EasyBlur (blur behind the window, see Skin windows) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | HotKey, iTunes, MSIAfterburner, other third-party DLLs (shown as placeholders; the skin still loads) |
+| Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue, SkinMenu, SkinCustomMenu, EditSkin, Enable/Disable/ToggleBlur, `Play`/`PlayLoop`/`PlayStop` (`pw-play`, `paplay` or `aplay`) | window-position bangs depend on the compositor | bangs accepted and ignored: About, Manage, Debug, TrayMenu, SetWallpaper, LoadLayout, Add/RemoveBlur, SnapEdges, `!KeepOnScreen` and similar Windows window features (keep-on-screen is available per skin in the right-click menu, and `Load=` layouts are applied when a `.rmskin` is installed) |
+| Variables | `#var#`, `[Measure]`, `[&Measure:]`, built-ins (`#@#`, `#CURRENTPATH#`, `#SCREENAREAWIDTH#` ...), `@Include`, formulas `( )`; Time `FormatLocale` for en, de, es, fr, it, pt, ru, uk | | |
+| Skin windows | transparent windows, backgrounds with 9-slice margins, dragging, click-through, tooltips text, per-skin position and size saved, `ContextTitle`/`ContextAction` menus | Z-order: Desktop/Below work on X11 and layer-shell; Normal everywhere. Blur (`Blur=1`, FrostedGlass) is real on KDE Plasma (KWin reads `_KDE_NET_WM_BLUR_BEHIND_REGION`); other compositors show the skin translucent | Aero effects, snap to edges |
 | Packages | `.rmskin` with footer, plain zip, folders, layouts, fonts | `Min version` checks (you may install anyway) | Windows plugin DLLs |
 | Drive letters | `C:` maps to `/`; Linux paths work in `Drive=` | other letters | |
 
@@ -169,3 +201,18 @@ you trust.
 
 Run `cargo test --workspace` before sending changes. Compare against real
 Rainmeter behaviour (stock 4.5) when in doubt.
+
+## Credits
+
+Snowmeter's bundled skins build on the work of Windows Rainmeter skin authors:
+
+- **Monterey** is a port of [Monterey for Rainmeter](https://github.com/creewick/MontereyRainmeter)
+  by **creewick** (CC BY-NC-SA 4.0; the port keeps that license, see
+  `skins/Monterey/SOURCE.md` for what changed), itself inspired by
+  fediaFedia's *Big Sur for Rainmeter*.
+- **Mond Remake** is inspired by [Mond](https://www.deviantart.com/apexxx-sensei/art/Mond-762455575)
+  by **ApexXx-SenSei**; it is written from scratch (no original files), and the
+  original package ships unmodified as `Mond`.
+- Fonts: [Inter](https://github.com/rsms/inter) and [Quicksand](https://github.com/andrew-paglinawan/QuicksandFamily)
+  (SIL OFL 1.1), Syncopate by Astigmatic (Apache 2.0). Weather data:
+  [Open-Meteo](https://open-meteo.com/) (CC BY 4.0).

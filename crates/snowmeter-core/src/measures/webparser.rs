@@ -81,6 +81,8 @@ pub struct WebParser {
     actions: Vec<String>,
     log: Vec<String>,
     skin_dir: PathBuf,
+    /// New data was published for child measures since the skin last asked.
+    fresh: std::cell::Cell<bool>,
 }
 
 impl WebParser {
@@ -207,6 +209,7 @@ impl WebParser {
         let k = key(dir, &self.section);
         let generation = next_generation();
         PUBLISHED.with(|p| p.borrow_mut().insert(k, Published { generation, groups }));
+        self.fresh.set(true);
     }
 
     fn decode_entities(&self, s: &str) -> String {
@@ -555,6 +558,14 @@ impl MeasureImpl for WebParser {
             }
             other => self.log.push(format!("WebParser: unknown command '{other}'")),
         }
+    }
+
+    fn take_published(&mut self) -> bool {
+        self.fresh.replace(false)
+    }
+
+    fn data_parent(&self) -> Option<String> {
+        self.parent.clone()
     }
 
     fn take_actions(&mut self) -> Vec<String> {

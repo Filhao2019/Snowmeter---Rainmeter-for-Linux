@@ -30,7 +30,7 @@ pub struct Cli {
 pub enum Cmd {
     /// Start the application (default when no command is given).
     Start,
-    /// Load a skin, e.g. `snowmeter load "illustro\Clock" [Clock.ini]`.
+    /// Load a skin, e.g. `snowmeter load "Snowmeter\Weekday" [Weekday.ini]`.
     Load { config: String, file: Option<String> },
     /// Unload a skin.
     Unload { config: String },
@@ -61,6 +61,12 @@ pub enum Cmd {
         #[arg(long, default_value_t = 1)]
         ticks: u32,
     },
+    /// Run Rainmeter bangs, e.g. `snowmeter bang "[!SetVariable X 1][!Redraw]" "Snowmeter\System"`
+    /// (without a config: every loaded skin).
+    Bang { actions: String, config: Option<String> },
+    /// Resize a loaded skin, e.g. `snowmeter scale "Monterey\Widgets\Clock" 150`
+    /// (percent, 25-400; also in the right-click menu and with Ctrl+mouse wheel).
+    Scale { config: String, percent: u32 },
     /// Ask the running instance to quit.
     Quit,
 }

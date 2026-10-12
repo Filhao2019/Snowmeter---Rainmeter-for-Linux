@@ -1,0 +1,4 @@
+[Variables]
+tTimer=Timer
+tTimerDescription=grundlegender Countdown
+tTimerDefault=Standardzeit

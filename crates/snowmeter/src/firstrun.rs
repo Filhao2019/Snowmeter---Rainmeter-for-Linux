@@ -8,6 +8,9 @@ use snowmeter_core::settings::Settings;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_CONFIGS: [&str; 3] = ["Snowmeter\\Weekday", "Snowmeter\\System", "Snowmeter\\Disk"];
+/// Where the default widgets open on the first start: a column near the
+/// top-left corner instead of all three on top of each other.
+const DEFAULT_POSITIONS: [(i32, i32); 3] = [(40, 40), (40, 240), (40, 410)];
 
 /// First existing of `$SNOWMETER_BUNDLED_SKINS`, `<exe_dir>/../share/snowmeter/skins`,
 /// `<exe_dir>/../../skins` (the repo's `skins/` during development).
@@ -48,17 +51,26 @@ pub fn run(env: &Environment, settings: &mut Settings) -> bool {
     }
     if first {
         let reg = SkinRegistry::scan(env);
-        for name in DEFAULT_CONFIGS {
+        let mut activated = 0;
+        for (name, (x, y)) in DEFAULT_CONFIGS.iter().zip(DEFAULT_POSITIONS) {
             if let Some(c) = reg.config(name) {
                 if let Some(file) = c.files.first().cloned() {
-                    if let Err(e) = activate_skin(env, settings, name, &file) {
-                        log::warn!("first run: cannot activate {name}: {e}");
+                    match activate_skin(env, settings, name, &file) {
+                        Ok((config, _)) => {
+                            settings.set_config_key(&config, "WindowX", &x.to_string());
+                            settings.set_config_key(&config, "WindowY", &y.to_string());
+                            activated += 1;
+                        }
+                        Err(e) => log::warn!("first run: cannot activate {name}: {e}"),
                     }
                 }
             }
         }
-        settings.set_first_run_done(true);
-        changed = true;
+        // Without the bundled skins nothing could be set up: try again next start.
+        if activated > 0 {
+            settings.set_first_run_done(true);
+            changed = true;
+        }
     }
     if changed {
         if let Err(e) = settings.save() {
