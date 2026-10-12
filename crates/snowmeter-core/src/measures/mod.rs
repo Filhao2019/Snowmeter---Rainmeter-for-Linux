@@ -37,6 +37,7 @@ pub mod substitute;
 pub(crate) mod testutil;
 pub mod time;
 pub mod webparser;
+pub mod wifi;
 pub mod uptime;
 pub mod usagemonitor;
 pub mod cpu;

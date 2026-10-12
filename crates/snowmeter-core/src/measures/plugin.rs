@@ -62,6 +62,7 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("hwinfo", || Box::new(super::temps::HwInfo::new())),
     ("ping", || Box::new(super::ping::Ping::new())),
     ("audiolevel", || Box::new(super::audiolevel::AudioLevel::new())),
+    ("wifistatus", || Box::new(super::wifi::WifiStatus::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),
@@ -268,10 +269,10 @@ mod tests {
 
     #[test]
     fn known_but_unimplemented_plugin_names_are_placeholders() {
-        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=WifiStatus\n");
+        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=MediaKey\n");
         let m = Measure::new("M", "Plugin", &OptionReader { parser: &s.parser, section: "M", sv: None });
         assert!(m.known_type);
-        let mut n = Measure::new("N", "WifiStatus", &OptionReader { parser: &s.parser, section: "N", sv: None });
+        let mut n = Measure::new("N", "MediaKey", &OptionReader { parser: &s.parser, section: "N", sv: None });
         assert!(n.known_type);
         assert!(n.take_log()[0].contains("not supported on Linux"));
     }
