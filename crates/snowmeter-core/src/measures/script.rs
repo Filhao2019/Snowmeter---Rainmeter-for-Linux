@@ -1,4 +1,5 @@
-//! The Script measure (measures.md section 3.10): Lua 5.1 (LuaJIT) with the
+//! The Script measure (measures.md section 3.10): Lua 5.1.5 (stock Rainmeter
+//! 4.5 embeds it with LUA_COMPAT_VARARG, so the implicit `arg` table works) with the
 //! Rainmeter `SKIN` / `SELF` API. One Lua state per measure.
 
 use super::base::format_value;
@@ -163,10 +164,10 @@ impl ScriptMeasure {
 
     /// The Lua state and environment, once the script is loaded.
     fn make_lua(&self) -> mlua::Result<(Lua, Table)> {
-        let libs = StdLib::STRING | StdLib::TABLE | StdLib::MATH | StdLib::OS | StdLib::IO | StdLib::BIT;
+        let libs = StdLib::STRING | StdLib::TABLE | StdLib::MATH | StdLib::OS | StdLib::IO;
         let lua = Lua::new_with(libs, LuaOptions::default())?;
         let g = lua.globals();
-        for name in ["collectgarbage", "require", "module", "loadfile", "dofile"] {
+        for name in ["collectgarbage", "require", "module", "package", "debug"] {
             g.set(name, Value::Nil)?;
         }
         if let Ok(os) = g.get::<Table>("os") {

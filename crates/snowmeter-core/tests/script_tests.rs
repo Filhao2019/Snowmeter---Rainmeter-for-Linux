@@ -125,7 +125,7 @@ fn command_measure_runs_a_chunk_in_the_script_environment() {
 #[test]
 fn print_goes_to_the_log_and_unsafe_libs_are_gone() {
     let fx = Fx::new();
-    let lua = "function Update()\n print('a', 1)\n if io.popen or os.exit or require or collectgarbage then return -1 end\n return bit.band(6, 3) end";
+    let lua = "function Update()\n print('a', 1)\n if io.popen or os.exit or require or collectgarbage then return -1 end\n return 2 end";
     let mut s = fx.skin(INI, lua);
     s.tick();
     assert_eq!(s.measure_value("Sc"), Some(2.0));
@@ -168,4 +168,44 @@ fn memory_bomb_is_aborted() {
     let t = std::time::Instant::now();
     s.tick();
     assert!(t.elapsed() < std::time::Duration::from_secs(5), "took {:?}", t.elapsed());
+}
+
+#[test]
+fn lua51_implicit_arg_table_in_vararg_functions() {
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        INI,
+        "function f(...) local first = table.remove(arg, 1) return first * 100 + #arg + arg.n end\n\
+         function Update() return f(7, 8, 9) end",
+    );
+    s.tick();
+    // first=7, #arg=2 after removal, arg.n is 3 (compat vararg keeps n).
+    assert_eq!(s.measure_value("Sc"), Some(705.0));
+}
+
+#[test]
+fn stock_library_surface() {
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        INI,
+        "function Update()\n\
+           local ok = (collectgarbage == nil) and (os.exit == nil) and (io.popen == nil) and (io.stdout == nil)\n\
+             and (package == nil) and (require == nil) and (bit == nil) and (jit == nil)\n\
+             and (dofile ~= nil) and (loadfile ~= nil) and (os.setlocale('C') == nil) and (_VERSION == 'Lua 5.1')\n\
+           return ok and 1 or 0\nend",
+    );
+    s.tick();
+    assert_eq!(s.measure_value("Sc"), Some(1.0));
+}
+
+#[test]
+fn dofile_loads_a_settings_file() {
+    let fx = Fx::new();
+    let dir = fx.env.skins_dir.join("S");
+    std::fs::create_dir_all(&dir).unwrap();
+    let cfg = dir.join("settings.lua");
+    std::fs::write(&cfg, "return { n = 33 }").unwrap();
+    let mut s = fx.skin(INI, &format!("function Update() return dofile([[{}]]).n end", cfg.display()));
+    s.tick();
+    assert_eq!(s.measure_value("Sc"), Some(33.0));
 }
