@@ -1,6 +1,7 @@
 //! Snowmeter core engine: Rainmeter-compatible INI reading, variables,
 //! formulas, colors, paths and bang parsing. No GUI dependencies.
 
+pub mod active;
 pub mod bangs;
 pub mod color;
 pub mod compat;

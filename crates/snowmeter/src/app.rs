@@ -513,7 +513,15 @@ impl Inner {
         });
     }
 
+    /// Tell the ConfigActive plugin which configs exist and which are loaded.
+    fn publish_active(&self) {
+        let known: Vec<String> = self.registry.borrow().configs.iter().map(|c| c.name.clone()).collect();
+        let active: Vec<String> = self.windows.borrow().iter().map(|w| w.config.clone()).collect();
+        snowmeter_core::active::publish(known, active);
+    }
+
     fn update_tray(&self) {
+        self.publish_active();
         if let Some(t) = self.tray.borrow().as_ref() {
             t.set_skins(self.tray_list(), self.gallery_list());
         }
@@ -704,6 +712,7 @@ fn start(gapp: &gtk4::Application, sock: std::path::PathBuf, tx: &mpsc::Sender<M
             log::warn!("cannot load {name}: {e}");
         }
     }
+    inner.publish_active();
     let tx = tx.clone();
     let tray = Tray::start(inner.tray_list(), inner.gallery_list(), move |cmd| {
         let _ = tx.send(Msg::Tray(cmd));

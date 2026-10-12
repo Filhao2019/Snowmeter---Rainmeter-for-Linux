@@ -381,10 +381,29 @@ impl Skin {
         self.update_cycle(false);
     }
 
-    /// Milliseconds until the next `!Delay`ed action is due.
+    /// Milliseconds until the next `!Delay`ed action or ActionTimer step is due.
     pub fn next_delay_ms(&self) -> Option<u64> {
         let now = Instant::now();
-        self.delayed.iter().map(|d| d.due.saturating_duration_since(now).as_millis() as u64).min()
+        let delays = self.delayed.iter().map(|d| d.due.saturating_duration_since(now).as_millis() as u64);
+        let timers = self.measures.iter().filter_map(|e| e.m.try_borrow().ok()?.next_wakeup(now)).map(|d| d.as_millis() as u64);
+        delays.chain(timers).min()
+    }
+
+    /// Run ActionTimer steps that are due.
+    pub(crate) fn run_timers(&mut self) {
+        let now = Instant::now();
+        for i in 0..self.measures.len() {
+            let acts = match self.measures[i].m.try_borrow_mut() {
+                Ok(mut m) => m.poll_timers(now),
+                Err(_) => continue,
+            };
+            if !acts.is_empty() {
+                let name = self.measures[i].name.clone();
+                for a in acts {
+                    self.execute_in(&a, Some(&name));
+                }
+            }
+        }
     }
 
     pub(crate) fn update_cycle(&mut self, force: bool) {

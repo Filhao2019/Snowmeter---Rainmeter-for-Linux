@@ -1,9 +1,11 @@
 //! Measures: the common `Measure` wrapper (Measure.cpp) plus the per-type
 //! implementations behind the `MeasureImpl` trait.
 
+pub mod actiontimer;
 pub mod base;
 pub mod bgshared;
 pub mod calc;
+pub mod configactive;
 pub mod cosmetic;
 pub mod disk;
 pub mod fileview;
@@ -102,6 +104,14 @@ pub trait MeasureImpl {
     /// Text-entry requests queued by `!CommandMeasure` (InputText).
     fn take_input_requests(&mut self) -> Vec<inputtext::InputTextSpec> {
         Vec::new()
+    }
+    /// Timer-driven actions that are due at `now` (ActionTimer).
+    fn poll_timers(&mut self, _now: std::time::Instant) -> Vec<String> {
+        Vec::new()
+    }
+    /// Time until `poll_timers` has something to do, if a timer is running.
+    fn next_wakeup(&self, _now: std::time::Instant) -> Option<std::time::Duration> {
+        None
     }
     /// Messages produced while reading options; drained by `Measure`.
     fn take_log(&mut self) -> Vec<String> {
@@ -403,6 +413,15 @@ impl Measure {
         let mut v = std::mem::take(&mut self.pending);
         v.extend(self.imp.take_actions());
         v
+    }
+
+    /// Actions due from running timers (ActionTimer); empty for other measures.
+    pub fn poll_timers(&mut self, now: std::time::Instant) -> Vec<String> {
+        self.imp.poll_timers(now)
+    }
+
+    pub fn next_wakeup(&self, now: std::time::Instant) -> Option<std::time::Duration> {
+        self.imp.next_wakeup(now)
     }
 
     /// Text-entry requests queued by the last `!CommandMeasure`.

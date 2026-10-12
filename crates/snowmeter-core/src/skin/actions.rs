@@ -151,6 +151,7 @@ impl Skin {
     }
 
     pub fn run_delayed(&mut self) {
+        self.run_timers();
         let now = Instant::now();
         let (due, rest): (Vec<Delayed>, Vec<Delayed>) = std::mem::take(&mut self.delayed).into_iter().partition(|d| d.due <= now);
         self.delayed = rest;
