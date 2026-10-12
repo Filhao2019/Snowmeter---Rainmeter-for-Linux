@@ -25,6 +25,7 @@ pub mod plugin;
 pub mod ping;
 pub mod power;
 pub mod process;
+pub mod quote;
 pub mod recycle;
 pub mod registry;
 pub mod runcommand;

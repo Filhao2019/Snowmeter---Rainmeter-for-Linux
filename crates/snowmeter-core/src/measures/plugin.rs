@@ -64,6 +64,7 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("audiolevel", || Box::new(super::audiolevel::AudioLevel::new())),
     ("wifistatus", || Box::new(super::wifi::WifiStatus::new())),
     ("audio", || Box::new(super::audio::AudioMeasure::new())),
+    ("quote", || Box::new(super::quote::Quote::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),
