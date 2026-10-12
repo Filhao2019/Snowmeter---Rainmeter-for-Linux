@@ -1,0 +1,32 @@
+raiguard/ModernGadgets lic=MIT branch=master sha=c269b74f14e79dc77f5bbfc91b3f83d3de2f4843 rel=v1.8.2 https://github.com/raiguard/ModernGadgets/releases/download/v1.8.2/ModernGadgets_v1.8.2.rmskin
+marcopixel/SysDash lic=MIT branch=master sha=3094972fc5e9a591b069be1b9136f1ee96152a93 rel=1.1.0 https://github.com/marcopixel/SysDash/releases/download/1.1.0/SysDash_1.1.0.rmskin
+redsaph/cleartext lic=CC0-1.0 branch=master sha=839a774c7bf402e04fa8a5df6e5bbc2bb5b3caea rel=6.0 https://github.com/redsaph/cleartext/releases/download/6.0/Cleartext_6.0a.rmskin
+marcopixel/monstercat-visualizer lic=MIT branch=master sha=553aa755ef0cc394259fb1a55560f1b31864d2e0 rel=2.1.0 https://github.com/marcopixel/monstercat-visualizer/releases/download/2.1.0/Monstercat.Visualizer.for.Rainmeter_2.1.0.rmskin
+marcopixel/Lano-Visualizer lic=MIT branch=master sha=8ab076b9cff7e3262d3b4f978b058d0f86aca020 rel=
+Jax-Core/ModularClocks lic=MIT branch=main sha=f61896dc1da6a3f0e47a1ba3d480a6fdd889b4d5 rel=v2.5 https://github.com/Jax-Core/ModularClocks/releases/download/v2.5/ModularClocks_v2.5.rmskin
+Jax-Core/ModularPlayers lic=MIT branch=main sha=6ad92b98e8e12a81e19505e38d77bf405e1b05b8 rel=v2.64 https://github.com/Jax-Core/ModularPlayers/releases/download/v2.64/ModularPlayers_v2.64.rmskin
+Jax-Core/ModularVisualizer lic=MIT branch=main sha=a874fc21550c2bd915077c83f0dd78e936f77666 rel=v1.1 https://github.com/Jax-Core/ModularVisualizer/releases/download/v1.1/ModularVisualizer_v1.1.rmskin
+Jax-Core/JaxCore lic=MPL-2.0 branch=main sha=eeb9b2219bf823b107370c70194e45c68b05c48d rel=v50410 https://github.com/Jax-Core/JaxCore/releases/download/v50410/JaxCore_v50410.rmskin
+Xenon257R/blue-archive-rainmeter lic=MIT branch=master sha=008fb71272b50d39a2f14b0d03558552fac56491 rel=v1.2.6 https://github.com/Xenon257R/blue-archive-rainmeter/releases/download/v1.2.6/Blue.Archive.Home.User.Interface.Suite_1.2.6.rmskin
+lezzthanthree/Needy-Streamer-Overload lic=MIT branch=master sha=f80303b090bf76a76c134cebd2141e5e5ce8385c rel=v.5.2.1 https://github.com/lezzthanthree/Needy-Streamer-Overload/releases/download/v.5.2.1/Needy.Streamer.Overload_5.2.1.rmskin
+Meti0X7CB/SystemFetch lic=GPL-3.0 branch=main sha=faa4f59682651d5ce79c2098461c5d2c550bad36 rel=2.5 https://github.com/Meti0X7CB/SystemFetch/releases/download/2.5/SystemFetch_2.5.rmskin
+Meti0X7CB/SquarePlayer lic=GPL-3.0 branch=main sha=4b6cb0efbcb8e0e8d9d402e78f633834a360ef41 rel=3.5 https://github.com/Meti0X7CB/SquarePlayer/releases/download/3.5/SquarePlayer_3.5.rmskin
+alperenozlu/rainmeter-todo lic=GPL-3.0 branch=master sha=dfdd38e41bd6bd9afcb83b07be468e47161c1aba rel=1.0.2 https://github.com/alperenozlu/rainmeter-todo/releases/download/1.0.2/Rainmeter.To-Do_1.0.2.rmskin
+Mive82/Persona-5-Calendar lic=WTFPL branch=master sha=2c31c897301914821aefc8eb0acb7e5399cc5943 rel=v1.1 https://github.com/Mive82/Persona-5-Calendar/releases/download/v1.1/Persona.5.Calendar_1.1.rmskin
+Runixe786/Winlock lic=MIT branch=main sha=c8b67e0bb01dc22284daa5648372d113806f0a9f rel=1.0.0 https://github.com/Runixe786/Winlock/releases/download/1.0.0/WinLock_1.0.rmskin
+SamToki/Sam-Toki-Rainmeter-Skin lic=GPL-3.0 branch=master sha=829316a923016348a3b527c59b6f7e6d178a48c7 rel=v6.04 https://github.com/SamToki/Sam-Toki-Rainmeter-Skin/releases/download/v6.04/STRS.rmskin
+modkavartini/catppuccin lic=none branch=main sha=cb880529671d40066d22e591c85f162c7326b706 rel=v1.4.1 https://github.com/modkavartini/catppuccin/releases/download/v1.4.1/catppuccin_1.4.1.rmskin
+d-meloper/dmelopers-block-hud lic=MIT branch=main sha=f6a2eec57d755cb77e8b1e372c7af6904325e87e rel=v1.4.3 https://github.com/d-meloper/dmelopers-block-hud/releases/download/v1.4.3/DMelopers-Block-HUD_Global.rmskin
+kaelri/enigma lic=none branch=master sha=596bee070735b53c885193c806462219fafafc00 rel=
+creewick/MontereyRainmeter lic=NOASSERTION branch=main sha=7103362b9abfb5cdf271a21e97936d98b2a49515 rel=v1.0.2 https://github.com/creewick/MontereyRainmeter/releases/download/v1.0.2/Monterey_1.0.2.rmskin
+SilverAzide/Gadgets lic=NOASSERTION branch=master sha=bc238740ac0ac898c8a700a45ee9d5850530594f rel=v7.10.0 https://github.com/SilverAzide/Gadgets/releases/download/v7.10.0/Gadgets_7.10.0.rmskin
+Lssg97/DetailedSystemMonitor lic=NOASSERTION branch=main sha=134fe18280c8da84d61badf18dbba507c517fc26 rel=v3.5 https://github.com/Lssg97/DetailedSystemMonitor/releases/download/v3.5/DetailedSystemMonitor_v_3.5.rmskin
+FiiZzioN/Rainmeter.Wisp lic=NOASSERTION branch=master sha=e25b89cf42316542cd3c33814ab1a0ac688348a6 rel=
+Runixe786/MD3-Windows lic=none branch=main sha=f7ecbb03ee11d67f41518b4513d0ef6e9da12bb8 rel=v0.5-PublicBeta 
+mpurses/Sonder lic=none branch=master sha=d52b699d639906cde9a1bbb0c6cc4ea299f762c5 rel=v22.1.0 https://github.com/mpurses/Sonder/releases/download/v22.1.0/Sonder_22.1.0.rmskin
+alatsombath/Fountain-of-Colors lic=none branch=master sha=8f9400538a5ce7735b06c7fed77d12a4846ab453 rel=v3.8.4 https://github.com/alatsombath/Fountain-of-Colors/releases/download/v3.8.4/Fountain.of.Colors_3.8.4.15.Jan.2019.Reset.Settings.rmskin
+Runixe786/NThing-UI lic=none branch=main sha=00317c29d1645b4d119b9e3acc408143cee979c4 rel=v1.1-publicbeta https://github.com/Runixe786/NThing-UI/releases/download/v1.1-publicbeta/NThing.UI.Basic_v1.1.rmskin
+Runixe786/Expressive-Windows lic=none branch=main sha=2041793c724b512199f56b9f708f691e0bbde0d7 rel=v1 https://github.com/Runixe786/Expressive-Windows/releases/download/v1/Expressive.Windows_v1.rmskin
+fediaFedia/BigSurRainmeter lic=none branch=main sha=84c80e4d137f9b1e6f4838c5e4d7870bde6ce046 rel=v1.4.5 https://github.com/fediaFedia/BigSurRainmeter/releases/download/v1.4.5/BigSur26-Release-1.4.5.rmskin
+khanhas/Notch lic=none branch=master sha=b6256e2ab7fdba6d197effb8d84b26445ffac5f6 rel=v1.4 https://github.com/khanhas/Notch/releases/download/v1.4/Notch_1.4.rmskin
+reisir/mondtholomew lic=none branch=main sha=8c2d843ed223dbf69515455125133387aa6adce3 rel=v1.3.2 https://github.com/reisir/mondtholomew/releases/download/v1.3.2/Mondtholomew.v1.3.2.rmskin
