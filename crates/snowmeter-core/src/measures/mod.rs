@@ -13,17 +13,20 @@ pub mod net;
 pub mod nowplaying;
 pub mod plugin;
 pub mod power;
+pub mod process;
 pub mod recycle;
 pub mod registry;
 pub mod script;
 pub mod sysinfo;
 pub mod string;
+pub mod sysmon;
 pub mod substitute;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod time;
 pub mod webparser;
 pub mod uptime;
+pub mod usagemonitor;
 pub mod cpu;
 
 use crate::env::Environment;

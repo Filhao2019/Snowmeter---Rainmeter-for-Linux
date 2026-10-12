@@ -49,6 +49,8 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("nowplaying", || Box::new(super::nowplaying::NowPlayingMeasure::new())),
     ("inputtext", || Box::new(super::inputtext::InputTextMeasure::new())),
     ("webnowplaying", || Box::new(super::nowplaying::web::WebNowPlayingMeasure::new())),
+    ("process", || Box::new(super::process::ProcessMeasure::new())),
+    ("usagemonitor", || Box::new(super::usagemonitor::UsageMonitor::new())),
     ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
     ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),
@@ -223,7 +225,7 @@ mod tests {
         let opt = OptionReader { parser: &s.parser, section: "M", sv: None };
         assert!(!create_measure_impl("Bogus", "M", &opt, &mut Vec::new()).1);
         assert!(is_known_measure_type("NowPlaying") && !is_known_measure_type("Bogus"));
-        assert!(is_native_plugin("WebParser.dll") && is_native_plugin("PowerPlugin") && is_native_plugin("NowPlaying.dll") && !is_native_plugin("Process"));
+        assert!(is_native_plugin("WebParser.dll") && is_native_plugin("PowerPlugin") && is_native_plugin("NowPlaying.dll") && is_native_plugin("Process") && !is_native_plugin("HotKey"));
         assert!(native_plugin_names().contains(&"script"));
     }
 
@@ -252,10 +254,10 @@ mod tests {
 
     #[test]
     fn known_but_unimplemented_plugin_names_are_placeholders() {
-        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=Process\n");
+        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=WifiStatus\n");
         let m = Measure::new("M", "Plugin", &OptionReader { parser: &s.parser, section: "M", sv: None });
         assert!(m.known_type);
-        let mut n = Measure::new("N", "Process", &OptionReader { parser: &s.parser, section: "N", sv: None });
+        let mut n = Measure::new("N", "WifiStatus", &OptionReader { parser: &s.parser, section: "N", sv: None });
         assert!(n.known_type);
         assert!(n.take_log()[0].contains("not supported on Linux"));
     }

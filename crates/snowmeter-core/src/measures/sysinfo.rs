@@ -256,6 +256,14 @@ impl SysInfo {
                     _ => self.string = parse_gateway(&self.read("/proc/net/route").unwrap_or_default(), &a.name).unwrap_or_default(),
                 }
             }
+            "USER_LOGONTIME" => {
+                let id = trim(self.read("/proc/self/sessionid"));
+                let session = (!id.is_empty() && id != "4294967295").then(|| self.read(&format!("/run/systemd/sessions/{id}"))).flatten();
+                let uptime = self.read("/proc/uptime");
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+                self.value = logon_filetime_secs(session.as_deref(), uptime.as_deref(), now, local_offset().0) as f64;
+            }
+            "IDLE_TIME" => self.value = idle_seconds(),
             "TIMEZONE_ISDST" | "TIMEZONE_BIAS" | "TIMEZONE_STANDARD_BIAS" | "TIMEZONE_DAYLIGHT_BIAS" => {
                 let (off, dst) = local_offset();
                 self.value = match t {
@@ -267,6 +275,60 @@ impl SysInfo {
             _ => {}
         }
     }
+}
+
+/// Seconds between 1601-01-01 and 1970-01-01.
+const FILETIME_EPOCH_DELTA: i64 = 11_644_473_600;
+
+/// Seconds since 1601 (local time) of the user's logon, like Rainmeter's
+/// `USER_LOGONTIME`. Uses the logind session start (`REALTIME=` in microseconds),
+/// else the boot time derived from `/proc/uptime`.
+pub fn logon_filetime_secs(session: Option<&str>, uptime: Option<&str>, now_unix: i64, utc_offset: i64) -> i64 {
+    let from_session = session.and_then(|t| {
+        t.lines().find_map(|l| l.strip_prefix("REALTIME=")).and_then(|v| v.trim().parse::<i64>().ok()).map(|us| us / 1_000_000)
+    });
+    let from_boot = || {
+        uptime.and_then(|t| t.split_whitespace().next()).and_then(|v| v.parse::<f64>().ok()).map(|up| now_unix - up as i64)
+    };
+    let unix = from_session.filter(|&t| t > 0 && t <= now_unix).or_else(from_boot).unwrap_or(now_unix);
+    unix + utc_offset + FILETIME_EPOCH_DELTA
+}
+
+static IDLE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static IDLE_THREAD: std::sync::Once = std::sync::Once::new();
+
+/// Seconds since the last user input, from the compositor's idle monitor
+/// (GNOME Mutter over D-Bus); 0 where none exists. Polled on a worker thread.
+fn idle_seconds() -> f64 {
+    IDLE_THREAD.call_once(|| {
+        let _ = std::thread::Builder::new().name("sysinfo-idle".into()).spawn(|| {
+            let Ok(conn) = zbus::blocking::Connection::session() else { return };
+            let mut failures = 0;
+            loop {
+                let r = conn.call_method(
+                    Some("org.gnome.Mutter.IdleMonitor"),
+                    "/org/gnome/Mutter/IdleMonitor/Core",
+                    Some("org.gnome.Mutter.IdleMonitor"),
+                    "GetIdletime",
+                    &(),
+                );
+                match r.ok().and_then(|m| m.body().deserialize::<u64>().ok()) {
+                    Some(ms) => {
+                        IDLE_MS.store(ms, std::sync::atomic::Ordering::Relaxed);
+                        failures = 0;
+                    }
+                    None => {
+                        failures += 1;
+                        if failures > 3 {
+                            return;
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        });
+    });
+    (IDLE_MS.load(std::sync::atomic::Ordering::Relaxed) / 1000) as f64
 }
 
 /// `(utc offset seconds, is_dst)` of the local zone now.
@@ -383,6 +445,18 @@ mod tests {
         assert_eq!(parse_gateway(ROUTE, "eth0").as_deref(), Some("192.168.1.1"));
         assert_eq!(parse_gateway(ROUTE, "wlan0"), None);
         assert_eq!(parse_dns("search x\nnameserver 1.1.1.1\nnameserver 8.8.8.8"), Some("1.1.1.1".into()));
+    }
+
+    #[test]
+    fn logon_time_prefers_the_session_then_boot() {
+        let d = FILETIME_EPOCH_DELTA;
+        assert_eq!(logon_filetime_secs(Some("ID=1\nREALTIME=1700000000123456\n"), Some("500.5 1"), 1_700_100_000, 3600), 1_700_000_000 + 3600 + d);
+        assert_eq!(logon_filetime_secs(None, Some("500.5 1"), 1_700_100_000, 0), 1_700_100_000 - 500 + d);
+        assert_eq!(logon_filetime_secs(Some("ID=1\n"), None, 1_700_100_000, 0), 1_700_100_000 + d);
+        // A session start in the future is nonsense.
+        assert_eq!(logon_filetime_secs(Some("REALTIME=9999999999999999"), Some("10 1"), 1000, 0), 990 + d);
+        assert!(run("USER_LOGONTIME", "", &[]).0 > d as f64);
+        assert!(run("IDLE_TIME", "", &[]).0 >= 0.0);
     }
 
     #[test]

@@ -59,9 +59,9 @@ fn unknown_plugin_is_reported() {
     let (_d, env) = setup();
     let r = check_config(&env, "Plug\\Net");
     assert!(!r.fully_supported);
-    assert_eq!(r.unsupported_plugins, vec!["HotKey.dll", "Process"]);
+    assert_eq!(r.unsupported_plugins, vec!["HotKey.dll"]);
     assert!(r.partial.is_empty());
-    assert_eq!(r.to_string(), "Plug\\Net: Unsupported plugins: HotKey.dll, Process");
+    assert_eq!(r.to_string(), "Plug\\Net: Unsupported plugins: HotKey.dll");
 }
 
 #[test]
