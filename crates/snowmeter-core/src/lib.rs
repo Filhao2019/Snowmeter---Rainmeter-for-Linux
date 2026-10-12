@@ -2,6 +2,7 @@
 //! formulas, colors, paths and bang parsing. No GUI dependencies.
 
 pub mod active;
+pub mod activetitle;
 pub mod bangs;
 pub mod color;
 pub mod compat;

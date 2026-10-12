@@ -131,9 +131,86 @@ pub fn pointer_root(win: &impl IsA<gtk4::Native>) -> Option<(i32, i32)> {
     }
 }
 
+/// Text of a window property as the WM stores it: UTF-8 (`_NET_WM_NAME`) or
+/// Latin-1 (`WM_NAME`), cut at the first NUL.
+pub fn decode_title(bytes: &[u8], utf8: bool) -> String {
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    let b = &bytes[..end];
+    if utf8 {
+        String::from_utf8_lossy(b).into_owned()
+    } else {
+        b.iter().map(|c| *c as char).collect()
+    }
+}
+
+unsafe fn read_property(d: *mut xlib::Display, win: xlib::Window, prop: xlib::Atom, ty: xlib::Atom, max_words: c_long) -> Option<(Vec<u8>, c_ulong, c_int)> {
+    let (mut actual, mut fmt, mut n, mut after): (xlib::Atom, c_int, c_ulong, c_ulong) = (0, 0, 0, 0);
+    let mut data: *mut c_uchar = std::ptr::null_mut();
+    let rc = xlib::XGetWindowProperty(d, win, prop, 0, max_words, xlib::False, ty, &mut actual, &mut fmt, &mut n, &mut after, &mut data);
+    if rc != 0 || data.is_null() {
+        return None;
+    }
+    let bytes_per = match fmt {
+        8 => 1,
+        16 => 2,
+        _ => std::mem::size_of::<c_long>(),
+    };
+    let out = if actual == 0 || n == 0 { None } else { Some((std::slice::from_raw_parts(data, n as usize * bytes_per).to_vec(), n, fmt)) };
+    xlib::XFree(data as *mut _);
+    out
+}
+
+/// Title of the focused top-level window (`_NET_ACTIVE_WINDOW`, `_NET_WM_NAME`
+/// with a `WM_NAME` fallback); empty when nothing is focused.
+pub fn active_window_title() -> String {
+    let Some(disp) = gtk4::gdk::Display::default().and_then(|d| d.downcast::<X11Display>().ok()) else { return String::new() };
+    let d = unsafe { disp.xdisplay() } as *mut xlib::Display;
+    if d.is_null() {
+        return String::new();
+    }
+    unsafe {
+        let root = xlib::XDefaultRootWindow(d);
+        let Some((w, _, _)) = read_property(d, root, atom(d, "_NET_ACTIVE_WINDOW"), xlib::XA_WINDOW, 1) else { return String::new() };
+        let mut id = [0u8; std::mem::size_of::<c_long>()];
+        id.copy_from_slice(&w[..std::mem::size_of::<c_long>()]);
+        let win = c_long::from_ne_bytes(id) as xlib::Window;
+        if win == 0 {
+            return String::new();
+        }
+        if let Some((b, _, _)) = read_property(d, win, atom(d, "_NET_WM_NAME"), atom(d, "UTF8_STRING"), 1024) {
+            return decode_title(&b, true);
+        }
+        match read_property(d, win, xlib::XA_WM_NAME, xlib::AnyPropertyType as xlib::Atom, 1024) {
+            Some((b, _, _)) => decode_title(&b, false),
+            None => String::new(),
+        }
+    }
+}
+
+/// Publish the focused window title twice a second while a skin asks for it.
+pub fn start_active_title_poll() {
+    if !is_x11() {
+        return;
+    }
+    gtk4::glib::timeout_add_local(std::time::Duration::from_millis(500), || {
+        if snowmeter_core::activetitle::wanted_within(10_000) {
+            snowmeter_core::activetitle::publish(&active_window_title());
+        }
+        gtk4::glib::ControlFlow::Continue
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn title_decoding() {
+        assert_eq!(decode_title("Caf\u{e9} \u{2014} x".as_bytes(), true), "Caf\u{e9} \u{2014} x");
+        assert_eq!(decode_title(&[0x43, 0x61, 0x66, 0xe9, 0, 0x7a], false), "Caf\u{e9}");
+        assert_eq!(decode_title(b"", true), "");
+        assert_eq!(decode_title(&[0xff, 0x41], true), "\u{fffd}A");
+    }
 
     #[test]
     fn states_per_type() {

@@ -651,6 +651,7 @@ pub fn run() -> i32 {
     gapp.connect_activate(move |gapp| {
         let Some(rx) = rx.borrow_mut().take() else { return };
         let inner = start(gapp, sock.clone(), &tx_tray);
+        crate::x11::start_active_title_poll();
         let poll = inner.clone();
         glib::timeout_add_local(Duration::from_millis(100), move || {
             while let Ok(m) = rx.try_recv() {

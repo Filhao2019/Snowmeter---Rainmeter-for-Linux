@@ -2,6 +2,7 @@
 //! implementations behind the `MeasureImpl` trait.
 
 pub mod actiontimer;
+pub mod activetitle;
 pub mod audiolevel;
 pub mod audio;
 pub mod base;
