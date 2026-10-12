@@ -5,5 +5,22 @@ edition.workspace = true
 license.workspace = true
 description = "Snowmeter: run Rainmeter skins on Linux"
 
+[features]
+default = []
+# Wayland layer-shell windows (needs the gtk4-layer-shell development package).
+wayland-layer-shell = []
+
 [dependencies]
 snowmeter-core = { path = "../snowmeter-core" }
+gtk4 = { version = "0.11", features = ["v4_14"] }
+gdk4-x11 = { version = "0.11", features = ["xlib"] }
+x11 = { version = "2.21", features = ["xlib"] }
+clap = { version = "4", features = ["derive"] }
+log = "0.4.34"
+env_logger = "0.11"
+ksni = { version = "0.3", features = ["blocking"] }
+libc = "0.2"
+cairo-rs = { version = "0.22", features = ["png"] }
+
+[dev-dependencies]
+tempfile = "3"

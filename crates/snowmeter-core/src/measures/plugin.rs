@@ -46,6 +46,7 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("sysinfo", || Box::new(super::sysinfo::SysInfo::new())),
     ("recyclemanager", || Box::new(super::recycle::RecycleMeasure::new())),
     ("power", || Box::new(super::power::PowerMeasure::new())),
+    ("inputtext", || Box::new(super::inputtext::InputTextMeasure::new())),
 ];
 
 /// Names Rainmeter treats as internal measures / default plugins, with the DLL

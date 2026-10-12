@@ -5,6 +5,7 @@ pub mod base;
 pub mod calc;
 pub mod disk;
 pub mod ifactions;
+pub mod inputtext;
 pub mod loop_;
 pub mod memory;
 pub mod net;
@@ -88,6 +89,10 @@ pub trait MeasureImpl {
     }
     /// Actions (bangs) queued by the implementation, run by the skin.
     fn take_actions(&mut self) -> Vec<String> {
+        Vec::new()
+    }
+    /// Text-entry requests queued by `!CommandMeasure` (InputText).
+    fn take_input_requests(&mut self) -> Vec<inputtext::InputTextSpec> {
         Vec::new()
     }
     /// Messages produced while reading options; drained by `Measure`.
@@ -390,6 +395,11 @@ impl Measure {
         let mut v = std::mem::take(&mut self.pending);
         v.extend(self.imp.take_actions());
         v
+    }
+
+    /// Text-entry requests queued by the last `!CommandMeasure`.
+    pub fn take_input_requests(&mut self) -> Vec<inputtext::InputTextSpec> {
+        self.imp.take_input_requests()
     }
 
     /// Log lines produced since the last call.

@@ -45,6 +45,8 @@ pub enum AppRequest {
     Hide { config: String },
     ToggleVisible { config: String },
     Quit,
+    /// Show a text entry over the skin (native InputText plugin).
+    InputText { config: String, spec: crate::measures::inputtext::InputTextSpec },
 }
 
 pub(crate) struct MeasureEntry {

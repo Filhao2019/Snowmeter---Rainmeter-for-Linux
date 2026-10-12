@@ -147,7 +147,7 @@ impl Skin {
         self.parser.replace_section_variables(s, &view)
     }
 
-    pub(crate) fn run_delayed(&mut self) {
+    pub fn run_delayed(&mut self) {
         let now = Instant::now();
         let (due, rest): (Vec<Delayed>, Vec<Delayed>) = std::mem::take(&mut self.delayed).into_iter().partition(|d| d.due <= now);
         self.delayed = rest;
@@ -538,6 +538,7 @@ impl Skin {
                     (arg(0).to_string(), arg(1).to_string())
                 };
                 let mut queued = Vec::new();
+                let mut inputs = Vec::new();
                 for i in self.measure_targets(&m, name.ends_with("group")) {
                     let view = super::View { measures: &self.measures, geom: &self.geom };
                     let host = super::script_host::SkinHost { parser: &self.parser, view: &view, size: self.size(), skin_dir: self.skin_dir.clone() };
@@ -547,6 +548,11 @@ impl Skin {
                     if !acts.is_empty() {
                         queued.push((self.measures[i].name.clone(), acts));
                     }
+                    inputs.extend(ms.take_input_requests());
+                }
+                for spec in inputs {
+                    let config = self.config.clone();
+                    self.push_request(super::AppRequest::InputText { config, spec });
                 }
                 for (n, acts) in queued {
                     for a in acts {
