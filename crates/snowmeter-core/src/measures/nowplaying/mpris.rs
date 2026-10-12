@@ -313,6 +313,7 @@ impl Service {
             match backend.poll() {
                 Ok(mut list) => {
                     for p in &mut list {
+                        p.cover_url = p.cover.clone();
                         p.cover = covers.resolve(&p.cover);
                     }
                     let now = Instant::now();

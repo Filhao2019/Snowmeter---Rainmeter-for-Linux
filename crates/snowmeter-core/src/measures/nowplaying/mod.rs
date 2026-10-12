@@ -3,6 +3,7 @@
 //! publishes snapshots which measures read in `update`.
 
 pub mod mpris;
+pub mod web;
 
 use super::{MeasureCtx, MeasureImpl};
 use crate::parser::OptionReader;
@@ -39,6 +40,8 @@ pub struct PlayerData {
     pub file: String,
     /// Local path of the cover (resolved/downloaded by the service), or "".
     pub cover: String,
+    /// The original `mpris:artUrl` (what WebNowPlaying calls `CoverWebAddress`).
+    pub cover_url: String,
     pub length_us: i64,
     pub position_us: i64,
     /// `xesam:userRating`, 0..1.

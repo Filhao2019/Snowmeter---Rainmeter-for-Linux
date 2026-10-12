@@ -3,6 +3,7 @@
 
 pub mod base;
 pub mod calc;
+pub mod cosmetic;
 pub mod disk;
 pub mod ifactions;
 pub mod inputtext;

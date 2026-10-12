@@ -48,6 +48,12 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("power", || Box::new(super::power::PowerMeasure::new())),
     ("nowplaying", || Box::new(super::nowplaying::NowPlayingMeasure::new())),
     ("inputtext", || Box::new(super::inputtext::InputTextMeasure::new())),
+    ("webnowplaying", || Box::new(super::nowplaying::web::WebNowPlayingMeasure::new())),
+    ("easyblur", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
+    ("frostedglass", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Blur))),
+    ("chameleon", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::Chameleon))),
+    ("syscolor", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::SysColor))),
+    ("meterialyou", || Box::new(super::cosmetic::CosmeticMeasure::new(super::cosmetic::Flavor::MeterialYou))),
 ];
 
 /// Names Rainmeter treats as internal measures / default plugins, with the DLL
@@ -55,6 +61,15 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
 const INTERNAL_NAMES: &[(&str, &str)] = &[
     ("webparser", "webparser"),
     ("nowplaying", "nowplaying"),
+    ("webnowplaying", "webnowplaying"),
+    ("gpmdpplugin", "webnowplaying"),
+    ("gpmdp", "webnowplaying"),
+    ("easyblur", "easyblur"),
+    ("frostedglass", "frostedglass"),
+    ("chameleon", "chameleon"),
+    ("syscolor", "syscolor"),
+    ("meterialyou", "meterialyou"),
+    ("materialyou", "meterialyou"),
     ("sysinfo", "sysinfo"),
     ("process", "process"),
     ("recyclemanager", "recyclemanager"),
