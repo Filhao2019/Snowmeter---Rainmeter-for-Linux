@@ -1,9 +1,0 @@
-- Middle-click any skin to refresh.
-
-- Double-click any skin for next variant.
-
-- Load the "Enigma\Options" skin to change your settings.
-
-<donotshow>
-
-- Any text that appears after the <donotshow> tag will not display in Enigma Notes.

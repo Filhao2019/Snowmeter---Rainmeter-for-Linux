@@ -1,4 +1,0 @@
-task|x|x
-No sweets||x|
-Set a day to meet friends|||
-Commit the latest changes|||
