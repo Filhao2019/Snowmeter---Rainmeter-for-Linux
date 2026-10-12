@@ -2,8 +2,16 @@
 //! behind the `MeterImpl` trait. To add a type, implement `MeterImpl` and add
 //! it to `create_impl`.
 
+pub mod bar;
 pub mod base;
+pub mod bitmap;
+pub mod button;
+pub mod histogram;
 pub mod image;
+pub mod imgslot;
+pub mod line;
+pub mod rotator;
+pub mod roundline;
 pub mod string;
 
 use crate::measures::Measure;
@@ -21,6 +29,10 @@ pub struct MeterInputs<'a> {
     pub measures: Vec<&'a Measure>,
     pub res: &'a Resources,
     pub log: &'a RefCell<Vec<String>>,
+    /// `(m_W, m_H)` as known before this update (given size plus padding).
+    pub size: (i32, i32),
+    /// `(width padding, height padding)`.
+    pub pad: (i32, i32),
 }
 
 impl MeterInputs<'_> {
@@ -39,6 +51,10 @@ pub trait MeterImpl {
     fn auto_size(&self, base: &MeterBase, res: &Resources) -> (f64, f64);
     /// Draw into `base.content_rect()`; the background is already painted.
     fn draw(&self, cr: &cairo::Context, base: &MeterBase, res: &Resources);
+    /// Content size that overrides `W`/`H` (meters sized by an image).
+    fn fixed_size(&self) -> Option<(f64, f64)> {
+        None
+    }
 
     // Optional hooks.
     /// How the anchor `(X, Y)` relates to the drawn rect (String only).
@@ -48,6 +64,14 @@ pub trait MeterImpl {
     /// The text currently shown (String meters), for tooltips and tests.
     fn text(&self) -> Option<&str> {
         None
+    }
+    /// True for Button meters, which keep pointer state.
+    fn is_button(&self) -> bool {
+        false
+    }
+    /// Pointer input for a button (see `button::ButtonMeter::mouse`).
+    fn button_mouse(&mut self, _base: &MeterBase, _input: button::ButtonInput, _p: &button::Pointer) -> (bool, Option<String>) {
+        (false, None)
     }
     /// Messages produced since the last call (bad options, missing files).
     fn take_log(&mut self) -> Vec<String> {
@@ -69,7 +93,7 @@ impl MeterImpl for Unsupported {
     fn draw(&self, _cr: &cairo::Context, _base: &MeterBase, _res: &Resources) {}
 }
 
-const DEFERRED_TYPES: [&str; 8] = ["BAR", "BITMAP", "HISTOGRAM", "LINE", "ROUNDLINE", "ROTATOR", "BUTTON", "SHAPE"];
+const DEFERRED_TYPES: [&str; 1] = ["SHAPE"];
 
 /// Factory. `Err` carries the reason a section is skipped.
 pub fn create_impl(type_name: &str) -> Result<Box<dyn MeterImpl>, String> {
@@ -77,6 +101,13 @@ pub fn create_impl(type_name: &str) -> Result<Box<dyn MeterImpl>, String> {
     match up.as_str() {
         "STRING" => Ok(Box::new(string::StringMeter::default())),
         "IMAGE" => Ok(Box::new(image::ImageMeter::default())),
+        "BAR" => Ok(Box::new(bar::BarMeter::default())),
+        "BITMAP" => Ok(Box::new(bitmap::BitmapMeter::default())),
+        "BUTTON" => Ok(Box::new(button::ButtonMeter::default())),
+        "HISTOGRAM" => Ok(Box::new(histogram::HistogramMeter::default())),
+        "LINE" => Ok(Box::new(line::LineMeter::default())),
+        "ROTATOR" => Ok(Box::new(rotator::RotatorMeter::default())),
+        "ROUNDLINE" => Ok(Box::new(roundline::RoundLineMeter::default())),
         t if DEFERRED_TYPES.contains(&t) => Ok(Box::new(Unsupported)),
         _ => Err(format!("Meter={type_name} is not valid")),
     }
@@ -115,6 +146,11 @@ impl Meter {
     pub fn resize(&mut self, res: &Resources) {
         let (aw, ah) = self.imp.auto_size(&self.base, res);
         let b = &mut self.base;
+        if let Some((fw, fh)) = self.imp.fixed_size() {
+            b.w = fw.trunc() + b.pad_w() as f64;
+            b.h = fh.trunc() + b.pad_h() as f64;
+            return;
+        }
         b.w = match b.w_given {
             Some(w) => (w + b.pad_w()) as f64,
             None => aw.trunc() + b.pad_w() as f64,

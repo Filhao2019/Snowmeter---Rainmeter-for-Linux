@@ -152,6 +152,12 @@ impl MeterBase {
         self.gradient_angle = opt.float("GradientAngle", 0.0);
         self.antialias = opt.int("AntiAlias", 0) != 0;
         self.measure_names = read_measure_names(opt);
+        if self.type_name.eq_ignore_ascii_case("Histogram") && self.measure_names.len() == 1 {
+            let legacy = opt.string("SecondaryMeasureName", "");
+            if !legacy.trim().is_empty() {
+                self.measure_names.push(legacy.trim().to_string());
+            }
+        }
         self.groups = opt
             .string("Group", "")
             .split('|')
@@ -201,6 +207,11 @@ impl MeterBase {
             self.w - self.pad_w() as f64,
             self.h - self.pad_h() as f64,
         )
+    }
+
+    /// Set the cairo antialias mode from the `AntiAlias` option.
+    pub fn apply_antialias(&self, cr: &cairo::Context) {
+        cr.set_antialias(if self.antialias { cairo::Antialias::Default } else { cairo::Antialias::None });
     }
 
     /// `[GetX(), GetX()+W) x [GetY(), GetY()+H)`.

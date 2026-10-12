@@ -1,6 +1,7 @@
 //! Cairo/Pango rendering helpers shared by all meters.
 
 pub mod fonts;
+pub mod geom;
 pub mod image;
 pub mod text;
 

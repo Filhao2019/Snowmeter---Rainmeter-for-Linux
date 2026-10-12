@@ -153,8 +153,14 @@ impl Default for ImageOptions {
 
 impl ImageOptions {
     pub fn read(opt: &OptionReader, log: &mut Vec<String>) -> ImageOptions {
+        Self::read_prefixed(opt, "", log)
+    }
+
+    /// Same options with a meter prefix (`Bar`, `Primary`, `Button`, ...).
+    pub fn read_prefixed(opt: &OptionReader, prefix: &str, log: &mut Vec<String>) -> ImageOptions {
+        let k = |name: &str| format!("{prefix}{name}");
         let mut o = ImageOptions::default();
-        let crop = opt.string("ImageCrop", "");
+        let crop = opt.string(&k("ImageCrop"), "");
         if !crop.trim().is_empty() {
             let parts: Vec<&str> = crop.split(',').collect();
             let num = |s: &str| opt.parser.parse_formula(s.trim(), opt.sv).map(|v| v as i32);
@@ -172,25 +178,25 @@ impl ImageOptions {
                 log.push(format!("[{}] ImageCrop needs 4 values", opt.section));
             }
         }
-        o.greyscale = opt.bool("Greyscale", false);
-        o.tint = opt.color("ImageTint", o.tint);
-        if opt.has("ImageAlpha") && !opt.string("ImageAlpha", "").is_empty() {
-            o.alpha = Some(opt.int("ImageAlpha", 255).clamp(0, 255) as i32);
+        o.greyscale = opt.bool(&k("Greyscale"), false);
+        o.tint = opt.color(&k("ImageTint"), o.tint);
+        if opt.has(&k("ImageAlpha")) && !opt.string(&k("ImageAlpha"), "").is_empty() {
+            o.alpha = Some(opt.int(&k("ImageAlpha"), 255).clamp(0, 255) as i32);
         }
         for (i, row) in o.matrix_rows.iter_mut().enumerate() {
-            let s = opt.string(&format!("ColorMatrix{}", i + 1), "");
+            let s = opt.string(&k(&format!("ColorMatrix{}", i + 1)), "");
             let vals: Vec<f32> = s.split(';').filter_map(|v| v.trim().parse::<f32>().ok()).collect();
             if s.split(';').count() >= 5 && vals.len() >= 5 {
                 *row = Some([vals[0], vals[1], vals[2], vals[3], vals[4]]);
             }
         }
-        o.flip = match opt.string("ImageFlip", "None").to_ascii_lowercase().as_str() {
+        o.flip = match opt.string(&k("ImageFlip"), "None").to_ascii_lowercase().as_str() {
             "horizontal" => Flip::Horizontal,
             "vertical" => Flip::Vertical,
             "both" => Flip::Both,
             _ => Flip::None,
         };
-        o.rotate = opt.float("ImageRotate", 0.0);
+        o.rotate = opt.float(&k("ImageRotate"), 0.0);
         o
     }
 
@@ -328,7 +334,7 @@ pub struct DrawParams {
     pub margins: [i32; 4],
 }
 
-fn paint_region(cr: &cairo::Context, src: &cairo::ImageSurface, s: (f64, f64, f64, f64), d: (f64, f64, f64, f64)) {
+pub fn paint_region(cr: &cairo::Context, src: &cairo::ImageSurface, s: (f64, f64, f64, f64), d: (f64, f64, f64, f64)) {
     if s.2 <= 0.0 || s.3 <= 0.0 || d.2 <= 0.0 || d.3 <= 0.0 {
         return;
     }

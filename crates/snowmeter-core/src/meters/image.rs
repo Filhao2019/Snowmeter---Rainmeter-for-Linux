@@ -1,5 +1,6 @@
 //! The Image meter (meters.md section 3).
 
+use super::imgslot::with_default_extension;
 use super::{MeterBase, MeterImpl, MeterInputs};
 use crate::parser::OptionReader;
 use crate::render::image::{draw_image, process, to_surface, DrawParams, ImageOptions};
@@ -18,15 +19,6 @@ pub struct ImageMeter {
     /// What the current surface was built from.
     loaded_key: Option<String>,
     surface: Option<cairo::ImageSurface>,
-}
-
-fn with_default_extension(path: &str) -> String {
-    let last = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    if last.contains('.') {
-        path.to_string()
-    } else {
-        format!("{path}.png")
-    }
 }
 
 impl ImageMeter {

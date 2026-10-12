@@ -454,7 +454,12 @@ impl Skin {
         }
         let log = RefCell::new(Vec::new());
         {
-            let inputs = MeterInputs { measures: guards.iter().map(|g| &**g).collect(), res, log: &log };
+            let b = &m.base;
+            let size = (
+                b.w_given.map(|v| v + b.pad_w()).unwrap_or(b.w as i32),
+                b.h_given.map(|v| v + b.pad_h()).unwrap_or(b.h as i32),
+            );
+            let inputs = MeterInputs { measures: guards.iter().map(|g| &**g).collect(), res, log: &log, size, pad: (b.pad_w(), b.pad_h()) };
             m.update(&inputs);
         }
         drop(guards);
