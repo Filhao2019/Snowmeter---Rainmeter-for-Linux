@@ -761,7 +761,12 @@ pub fn render_skin_png(env: &Environment, config: &str, file: Option<&str>, tick
         }
     };
     let mut skin = Skin::load(env, config, &file)?;
-    for _ in 0..ticks {
+    // Skins fed by background threads (AudioLevel, WebParser) need real time between ticks.
+    let pause = std::env::var("SNOWMETER_RENDER_TICK_MS").ok().and_then(|v| v.trim().parse::<u64>().ok()).unwrap_or(0);
+    for i in 0..ticks {
+        if i > 0 && pause > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(pause));
+        }
         skin.tick();
     }
     let (w, h) = skin.size();

@@ -140,7 +140,7 @@ you trust.
 4. Missing window-manager features: snap to edges, keep-on-screen on Wayland,
    multi-monitor `@N` positioning checks.
 5. Plugins often used by popular suites: HotKey, FileView, Process, iTunes
-   replacements, AudioLevel (PipeWire), Win7Audio, Quote.
+   replacements, Win7Audio, Quote.
 6. `ReadTextFile`/`WriteTextFile` helpers in the Lua API.
 7. Shape: gamma-correct gradients and triangle caps.
 8. Registry measure: map to a sensible Linux store or settings file.
