@@ -274,3 +274,62 @@ fn container_clips_and_positions() {
     assert_eq!(px(&img, 31, 15)[3], 0, "I1 clipped outside the container rect");
     assert_eq!(px(&img, 12, 12)[3], 0, "container itself is not drawn, only masks");
 }
+
+mod final_review_limits {
+    use snowmeter_core::env::Environment;
+    use snowmeter_core::skin::Skin;
+
+    fn run(ini: &str, extra: &[(&str, Vec<u8>)]) -> Skin {
+        let tmp = tempfile::tempdir().unwrap();
+        let env = Environment::with_root(tmp.path());
+        let dir = env.skins_dir.join("S");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Main.ini"), ini).unwrap();
+        for (n, b) in extra {
+            std::fs::write(dir.join(n), b).unwrap();
+        }
+        let mut s = Skin::load(&env, "S", "Main.ini").unwrap();
+        s.tick();
+        s.tick();
+        let _ = s.render_to_surface();
+        std::mem::forget(tmp);
+        s
+    }
+
+    fn png() -> Vec<u8> {
+        let mut v = Vec::new();
+        let img = image::RgbaImage::new(4, 4);
+        img.write_to(&mut std::io::Cursor::new(&mut v), image::ImageFormat::Png).unwrap();
+        v
+    }
+
+    #[test]
+    fn huge_line_count_is_clamped() {
+        let t = std::time::Instant::now();
+        run("[M]\nMeasure=Calc\nFormula=1\n[L]\nMeter=Line\nMeasureName=M\nW=100\nH=50\nLineCount=2000000000\n", &[]);
+        assert!(t.elapsed().as_secs() < 5);
+    }
+
+    #[test]
+    fn huge_line_width_is_clamped() {
+        run("[M]\nMeasure=Calc\nFormula=1\n[L]\nMeter=Line\nMeasureName=M\nW=2000000000\nH=50\n", &[]);
+    }
+
+    #[test]
+    fn huge_histogram_width_is_clamped() {
+        run(
+            "[M]\nMeasure=Calc\nFormula=1\n[H]\nMeter=Histogram\nMeasureName=M\nW=2000000000\nH=50\nPrimaryImage=p.png\n",
+            &[("p.png", png())],
+        );
+    }
+
+    #[test]
+    fn huge_bitmap_counts_are_clamped() {
+        let t = std::time::Instant::now();
+        run(
+            "[M]\nMeasure=Calc\nFormula=5\n[B]\nMeter=Bitmap\nMeasureName=M\nBitmapImage=p.png\nBitmapFrames=2000000000\nBitmapDigits=2000000000\nBitmapTransitionFrames=2000000000\nBitmapExtend=1\n",
+            &[("p.png", png())],
+        );
+        assert!(t.elapsed().as_secs() < 5);
+    }
+}

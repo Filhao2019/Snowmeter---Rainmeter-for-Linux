@@ -142,7 +142,7 @@ impl MeterImpl for HistogramMeter {
                 }
             }
         }
-        .max(0) as usize;
+        .clamp(0, crate::skin::MAX_SKIN_SIDE) as usize;
         if !self.images_ready() || sanity_fail || size == 0 {
             self.primary_values.clear();
             return changed;

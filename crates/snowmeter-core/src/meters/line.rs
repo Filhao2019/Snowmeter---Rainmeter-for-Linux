@@ -172,6 +172,10 @@ pub fn line_points(buf: &[f64], pos: usize, scale_n: f64, min: f64, max: f64, g:
     pts
 }
 
+/// Largest number of lines / history length accepted from a skin.
+pub const MAX_LINES: usize = 32;
+pub const MAX_HISTORY: usize = crate::skin::MAX_SKIN_SIDE as usize;
+
 impl LineMeter {
     fn resize_buffers(&mut self, size: usize) {
         let n = self.colors.len();
@@ -192,7 +196,11 @@ impl LineMeter {
 
 impl MeterImpl for LineMeter {
     fn read_options(&mut self, opt: &OptionReader) {
-        let count = opt.int("LineCount", 1).max(0) as usize;
+        let requested = opt.int("LineCount", 1).max(0);
+        let count = requested.min(MAX_LINES as i64) as usize;
+        if requested > MAX_LINES as i64 {
+            self.log.push(format!("LineCount={requested} is too large, using {MAX_LINES}"));
+        }
         let white = Color { r: 255, g: 255, b: 255, a: 255 };
         self.colors.clear();
         self.scales.clear();
@@ -233,7 +241,7 @@ impl MeterImpl for LineMeter {
         if m.measures.is_empty() {
             return false;
         }
-        let size = if self.horizontal { m.size.1 } else { m.size.0 }.max(0) as usize;
+        let size = (if self.horizontal { m.size.1 } else { m.size.0 }.max(0) as usize).min(MAX_HISTORY);
         self.resize_buffers(size);
         self.min_max = m.measures.iter().map(|x| (x.min_value(), x.max_value())).collect();
         if size > 0 {

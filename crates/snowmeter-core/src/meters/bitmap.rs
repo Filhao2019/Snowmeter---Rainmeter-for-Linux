@@ -29,6 +29,11 @@ pub struct BitmapMeter {
     log: Vec<String>,
 }
 
+/// Sanity caps for skin-supplied counts (a frame count or digit count beyond
+/// these cannot be drawn anyway; unbounded values hang or overflow).
+pub const MAX_FRAMES: i64 = 1 << 20;
+pub const MAX_DIGITS: i64 = 64;
+
 /// Frame shown for a relative value when not extended.
 pub fn frame_for(value: f64, frames: i32, transition: i32, zero_frame: bool) -> i32 {
     let real = (frames / (transition + 1)).max(1);
@@ -75,17 +80,17 @@ impl MeterImpl for BitmapMeter {
         let mut log = Vec::new();
         self.image.read(opt, "Bitmap", &mut log);
         self.log.extend(log);
-        self.frames = opt.int("BitmapFrames", 1).max(1) as i32;
+        self.frames = opt.int("BitmapFrames", 1).clamp(1, MAX_FRAMES as _) as i32;
         self.zero_frame = opt.bool("BitmapZeroFrame", false);
         self.extend = opt.bool("BitmapExtend", false);
-        self.digits = opt.int("BitmapDigits", 0) as i32;
+        self.digits = opt.int("BitmapDigits", 0).clamp(0, MAX_DIGITS as _) as i32;
         self.separation = opt.int("BitmapSeparation", 0) as i32;
         self.align = match opt.string("BitmapAlign", "Left").trim().to_ascii_lowercase().as_str() {
             "center" => BitmapAlign::Center,
             "right" => BitmapAlign::Right,
             _ => BitmapAlign::Left,
         };
-        self.transition_frames = opt.int("BitmapTransitionFrames", 0).max(0) as i32;
+        self.transition_frames = opt.int("BitmapTransitionFrames", 0).clamp(0, MAX_FRAMES as _) as i32;
     }
 
     fn update(&mut self, m: &MeterInputs) -> bool {

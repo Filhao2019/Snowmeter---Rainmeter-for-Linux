@@ -5,10 +5,18 @@ use super::base::format_value;
 use super::{MeasureCtx, MeasureImpl};
 use crate::numparse::parse_f64_prefix;
 use crate::parser::OptionReader;
-use mlua::{Function, Lua, LuaOptions, MultiValue, StdLib, Table, Value, Variadic};
+use mlua::{Function, HookTriggers, VmState, Lua, LuaOptions, MultiValue, StdLib, Table, Value, Variadic};
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+/// Wall-clock budget for one `Update`/`Initialize`/inline/command call.
+pub const CALL_BUDGET: Duration = Duration::from_millis(200);
+/// Budget for executing the script chunk when it is loaded.
+pub const LOAD_BUDGET: Duration = Duration::from_secs(1);
+/// Memory cap per Lua state.
+const MEMORY_LIMIT: usize = 64 << 20;
 
 /// Value of another measure as seen from Lua.
 #[derive(Clone, Debug, Default)]
@@ -47,6 +55,10 @@ struct Shared {
     section: RefCell<String>,
     value: Cell<f64>,
     string: RefCell<Option<String>>,
+    /// Deadline of the Lua call in progress (checked by the instruction hook).
+    deadline: Cell<Option<Instant>>,
+    /// Set when the budget was exceeded during the current call.
+    tripped: Cell<bool>,
 }
 
 impl Shared {
@@ -139,6 +151,8 @@ impl ScriptMeasure {
                 section: RefCell::new(String::new()),
                 value: Cell::new(0.0),
                 string: RefCell::new(None),
+                deadline: Cell::new(None),
+                tripped: Cell::new(false),
             }),
             initialized: false,
             value: 0.0,
@@ -184,6 +198,34 @@ impl ScriptMeasure {
         tolua.set("cast", lua.create_function(|_, (v, _): (Value, Value)| Ok(v))?)?;
         g.set("tolua", tolua)?;
         install_api(&lua, &self.shared)?;
+        // Memory cap; not every build has the allocator hook, so ignore failure.
+        let _ = lua.set_memory_limit(MEMORY_LIMIT);
+        let sh = self.shared.clone();
+        lua.set_global_hook(HookTriggers::new().every_nth_instruction(10_000), move |_, _| {
+            match sh.deadline.get() {
+                Some(d) if Instant::now() > d => {
+                    sh.tripped.set(true);
+                    Err(mlua::Error::runtime("script exceeded its time budget and was aborted"))
+                }
+                _ => Ok(VmState::Continue),
+            }
+        })?;
+        // `pcall` must not be able to swallow the budget abort.
+        for name in ["pcall", "xpcall"] {
+            if let Ok(orig) = g.get::<Function>(name) {
+                let sh = self.shared.clone();
+                g.set(
+                    name,
+                    lua.create_function(move |_, args: MultiValue| {
+                        let r = orig.call::<MultiValue>(args)?;
+                        if sh.tripped.get() {
+                            return Err(mlua::Error::runtime("script exceeded its time budget and was aborted"));
+                        }
+                        Ok(r)
+                    })?,
+                )?;
+            }
+        }
         let env = lua.create_table()?;
         let meta = lua.create_table()?;
         meta.set("__index", g.clone())?;
@@ -211,7 +253,10 @@ impl ScriptMeasure {
         let src = decode_source(bytes);
         match self.make_lua() {
             Ok((lua, env)) => {
+                self.shared.tripped.set(false);
+        self.shared.deadline.set(Some(Instant::now() + LOAD_BUDGET));
                 let res = lua.load(&src).set_name(format!("@{}", path.display())).set_environment(env.clone()).exec();
+                self.shared.deadline.set(None);
                 match res {
                     Ok(()) => {
                         self.lua = Some(lua);
@@ -249,7 +294,10 @@ impl ScriptMeasure {
         let _ = lua;
         self.sync_self();
         self.set_host(host);
+        self.shared.tripped.set(false);
+        self.shared.deadline.set(Some(Instant::now() + CALL_BUDGET));
         let r = f.call::<MultiValue>(args).map_err(|e| e.to_string());
+        self.shared.deadline.set(None);
         self.set_host(None);
         Some(r)
     }
@@ -631,7 +679,10 @@ impl MeasureImpl for ScriptMeasure {
         let (Some(lua), Some(env)) = (self.lua.as_ref(), self.env.as_ref()) else { return };
         self.sync_self();
         self.set_host(host);
+        self.shared.tripped.set(false);
+        self.shared.deadline.set(Some(Instant::now() + CALL_BUDGET));
         let r = lua.load(args).set_name("=CommandMeasure").set_environment(env.clone()).exec();
+        self.shared.deadline.set(None);
         self.set_host(None);
         if let Err(e) = r {
             self.log.push(format!("Script: {e}"));
@@ -658,7 +709,10 @@ impl MeasureImpl for ScriptMeasure {
         for a in split_args(&call[open + 1..close]) {
             args.push_back(parse_call_arg(lua, &a)?);
         }
+        self.shared.tripped.set(false);
+        self.shared.deadline.set(Some(Instant::now() + CALL_BUDGET));
         let r: mlua::Result<Value> = f.call(args);
+        self.shared.deadline.set(None);
         match r.ok()? {
             Value::Integer(i) => Some(i.to_string()),
             Value::Number(n) => Some(num_text(n)),

@@ -131,3 +131,41 @@ fn print_goes_to_the_log_and_unsafe_libs_are_gone() {
     assert_eq!(s.measure_value("Sc"), Some(2.0));
     assert!(s.log_messages().iter().any(|m| m.contains("a    1")));
 }
+
+#[test]
+fn runaway_update_is_aborted_within_budget() {
+    let fx = Fx::new();
+    let mut s = fx.skin(INI, "function Update() while true do end end");
+    let t = std::time::Instant::now();
+    s.tick();
+    assert!(t.elapsed() < std::time::Duration::from_secs(3), "took {:?}", t.elapsed());
+    // the app (and the skin) stays alive and ticks again
+    s.tick();
+}
+
+#[test]
+fn runaway_chunk_is_aborted_within_budget() {
+    let fx = Fx::new();
+    let mut s = fx.skin(INI, "repeat until false");
+    let t = std::time::Instant::now();
+    s.tick();
+    assert!(t.elapsed() < std::time::Duration::from_secs(4), "took {:?}", t.elapsed());
+}
+
+#[test]
+fn runaway_pcall_loop_is_aborted() {
+    let fx = Fx::new();
+    let mut s = fx.skin(INI, "function Update() while true do pcall(function() while true do end end) end end");
+    let t = std::time::Instant::now();
+    s.tick();
+    assert!(t.elapsed() < std::time::Duration::from_secs(3), "took {:?}", t.elapsed());
+}
+
+#[test]
+fn memory_bomb_is_aborted() {
+    let fx = Fx::new();
+    let mut s = fx.skin(INI, "function Update() local s='x' for i=1,40 do s=s..s end end");
+    let t = std::time::Instant::now();
+    s.tick();
+    assert!(t.elapsed() < std::time::Duration::from_secs(5), "took {:?}", t.elapsed());
+}
