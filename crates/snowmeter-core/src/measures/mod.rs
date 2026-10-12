@@ -3,6 +3,7 @@
 
 pub mod actiontimer;
 pub mod audiolevel;
+pub mod audio;
 pub mod base;
 pub mod bgshared;
 pub mod calc;
