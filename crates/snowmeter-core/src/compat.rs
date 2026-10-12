@@ -125,7 +125,7 @@ fn check_file(env: &Environment, cfg: &SkinConfig, file: &str, rep: &mut CompatR
             } else if !is_known_measure_type(ty) {
                 push_unique(&mut rep.partial, format!("Measure type \"{ty}\""));
             } else if canonical_plugin_name(ty).is_some() && !is_native_plugin(ty) {
-                // Plugin used by its internal measure name (Measure=NowPlaying).
+                // Plugin used by its internal measure name (Measure=Process).
                 push_unique(&mut rep.unsupported_plugins, ty.to_string());
             }
         }

@@ -46,6 +46,7 @@ const NATIVE_PLUGINS: &[(&str, Ctor)] = &[("script", || Box::new(super::script::
     ("sysinfo", || Box::new(super::sysinfo::SysInfo::new())),
     ("recyclemanager", || Box::new(super::recycle::RecycleMeasure::new())),
     ("power", || Box::new(super::power::PowerMeasure::new())),
+    ("nowplaying", || Box::new(super::nowplaying::NowPlayingMeasure::new())),
     ("inputtext", || Box::new(super::inputtext::InputTextMeasure::new())),
 ];
 
@@ -207,7 +208,7 @@ mod tests {
         let opt = OptionReader { parser: &s.parser, section: "M", sv: None };
         assert!(!create_measure_impl("Bogus", "M", &opt, &mut Vec::new()).1);
         assert!(is_known_measure_type("NowPlaying") && !is_known_measure_type("Bogus"));
-        assert!(is_native_plugin("WebParser.dll") && is_native_plugin("PowerPlugin") && !is_native_plugin("NowPlaying"));
+        assert!(is_native_plugin("WebParser.dll") && is_native_plugin("PowerPlugin") && is_native_plugin("NowPlaying.dll") && !is_native_plugin("Process"));
         assert!(native_plugin_names().contains(&"script"));
     }
 
@@ -236,10 +237,10 @@ mod tests {
 
     #[test]
     fn known_but_unimplemented_plugin_names_are_placeholders() {
-        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=NowPlaying\n");
+        let s = skin("[M]\nMeasure=Plugin\nPlugin=PowerPlugin.dll\n[N]\nMeasure=Process\n");
         let m = Measure::new("M", "Plugin", &OptionReader { parser: &s.parser, section: "M", sv: None });
         assert!(m.known_type);
-        let mut n = Measure::new("N", "NowPlaying", &OptionReader { parser: &s.parser, section: "N", sv: None });
+        let mut n = Measure::new("N", "Process", &OptionReader { parser: &s.parser, section: "N", sv: None });
         assert!(n.known_type);
         assert!(n.take_log()[0].contains("not supported on Linux"));
     }

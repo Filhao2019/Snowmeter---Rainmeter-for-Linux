@@ -95,7 +95,7 @@ offers Refresh all, Load skin and Quit.
 |---|---|---|---|
 | Measures | CPU, PhysicalMemory, SwapMemory, Memory, FreeDiskSpace, Uptime, Time, Calc, String, NetIn, NetOut, NetTotal, Registry (stub values), Loop | Plugin measures (see below) | Windows-only measures such as the Windows performance counter plugins |
 | Meters | String, Image, Bar, Bitmap, Button, Histogram, Line, Rotator, Roundline, Shape | Shape: gradient gamma is not applied, triangle line caps draw as square | none of the stock 4.5 types is missing |
-| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | NowPlaying, HotKey, other third-party DLLs (shown as placeholders; the skin still loads) |
+| Native plugins | WebParser, Script (Lua), SysInfo, RecycleManager (freedesktop Trash; `EmptyBin` asks for confirmation, `EmptyBinSilent` does not), PowerPlugin, InputText (native entry over the skin), NowPlaying (MPRIS over D-Bus; every `PlayerName` maps to the best MPRIS player) | SysInfo (some idle and logon time values return 0), Script (Lua `io`/`os` file functions are available but there is no `ReadTextFile` helper; each call is limited to 200 ms and each state to 64 MB, then the script call is aborted and logged) | HotKey, other third-party DLLs (shown as placeholders; the skin still loads) |
 | Bangs | variables, options, update/redraw/refresh, show/hide/toggle meters and measures, pause/enable/disable measures, CommandMeasure, mouse-action bangs, Delay, Log, Quit, Move/ZPos/Draggable/ClickThrough/Fade, Activate/Deactivate/ToggleConfig, WriteKeyValue | window-position bangs depend on the compositor | bangs accepted and ignored: About, Manage, Debug, SkinMenu, TrayMenu, EditSkin, SetWallpaper, LoadLayout, Blur bangs, SnapEdges, `!KeepOnScreen` and similar Windows window features (keep-on-screen is available per skin in the right-click menu, and `Load=` layouts are applied when a `.rmskin` is installed) |
 | Variables | `#var#`, `[Measure]`, `[&Measure:]`, built-ins (`#@#`, `#CURRENTPATH#`, `#SCREENAREAWIDTH#` ...), `@Include`, formulas `( )` | | |
 | Skin windows | transparent windows, backgrounds with 9-slice margins, dragging, click-through, tooltips text, per-skin position saved | Z-order: Desktop/Below work on X11 and layer-shell; Normal everywhere | Windows blur, Aero effects, snap to edges |
@@ -131,8 +131,8 @@ you trust.
 
 1. Wayland layer-shell support (link `gtk4-layer-shell` and wire the
    `wayland-layer-shell` feature) so widgets can sit on the background layer.
-2. NowPlaying plugin via MPRIS (D-Bus). The most common third-party plugin in
-   music skins.
+2. NowPlaying polish: event-driven updates (PropertiesChanged) instead of 1 s
+   polling, `PlayerPath` launching, `SetRating`.
 3. Meter ToolTip display and `Container` support polish (tooltip text is parsed
    but not shown everywhere).
 4. Missing window-manager features: snap to edges, keep-on-screen on Wayland,

@@ -26,7 +26,7 @@ fn setup() -> (tempfile::TempDir, Environment) {
     skin(
         &env,
         "Plug/Net/Net.ini",
-        "[Rainmeter]\n[mHot]\nMeasure=Plugin\nPlugin=Plugins\\HotKey.dll\n[mNow]\nMeasure=NowPlaying\n\
+        "[Rainmeter]\n[mHot]\nMeasure=Plugin\nPlugin=Plugins\\HotKey.dll\n[mNow]\nMeasure=Process\n\
          [mFine]\nMeasure=Plugin\nPlugin=Script\n[t]\nMeter=String\nMeasureName=mHot\n",
     );
     skin(
@@ -59,9 +59,9 @@ fn unknown_plugin_is_reported() {
     let (_d, env) = setup();
     let r = check_config(&env, "Plug\\Net");
     assert!(!r.fully_supported);
-    assert_eq!(r.unsupported_plugins, vec!["HotKey.dll", "NowPlaying"]);
+    assert_eq!(r.unsupported_plugins, vec!["HotKey.dll", "Process"]);
     assert!(r.partial.is_empty());
-    assert_eq!(r.to_string(), "Plug\\Net: Unsupported plugins: HotKey.dll, NowPlaying");
+    assert_eq!(r.to_string(), "Plug\\Net: Unsupported plugins: HotKey.dll, Process");
 }
 
 #[test]

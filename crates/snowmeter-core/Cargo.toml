@@ -17,6 +17,7 @@ pango = { version = "0.22", features = ["v1_44"] }
 pangocairo = "0.22"
 pcre2 = "0.2"
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+zbus = "5.19"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]

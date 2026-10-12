@@ -9,6 +9,7 @@ pub mod inputtext;
 pub mod loop_;
 pub mod memory;
 pub mod net;
+pub mod nowplaying;
 pub mod plugin;
 pub mod power;
 pub mod recycle;
