@@ -6,3 +6,12 @@ members = ["crates/snowmeter-core", "crates/snowmeter"]
 version = "0.1.0"
 edition = "2021"
 license = "GPL-2.0-only"
+
+# Keep debug/test builds small: line tables for our crates (enough for panic
+# backtraces), no debug info for dependencies. Full debug info for every test
+# binary made target/debug grow to ~50 GB during development.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
