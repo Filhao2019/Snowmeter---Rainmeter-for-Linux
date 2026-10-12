@@ -306,6 +306,55 @@ fn num(s: &str) -> f64 {
     crate::numparse::parse_f64_prefix(s.trim())
 }
 
+/// Evaluate `(formula)` arguments of an `InlineSetting` value (whole `|`
+/// arguments, or comma-separated colour components) to plain numbers, like
+/// `ConfigParser::ParseDouble/ParseInt` do for Rainmeter's other numeric options.
+fn expand_formulas(setting: &str, eval: &dyn Fn(&str) -> Option<f64>) -> String {
+    if !setting.contains('(') {
+        return setting.to_string();
+    }
+    let fmt = |v: f64| if v == v.trunc() && v.abs() < 1e15 { format!("{}", v as i64) } else { format!("{v}") };
+    let one = |t: &str| -> String {
+        let t = t.trim();
+        if t.starts_with('(') {
+            if let Some(v) = eval(t) {
+                return fmt(v);
+            }
+        }
+        t.to_string()
+    };
+    // Split on `sep` only outside parentheses.
+    let split = |text: &str, sep: char| -> Vec<String> {
+        let (mut depth, mut cur, mut out) = (0i32, String::new(), Vec::new());
+        for c in text.chars() {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ => {}
+            }
+            if c == sep && depth <= 0 {
+                out.push(std::mem::take(&mut cur));
+            } else {
+                cur.push(c);
+            }
+        }
+        out.push(cur);
+        out
+    };
+    let parts: Vec<String> = split(setting, '|')
+        .iter()
+        .map(|part| {
+            let comps = split(part, ',');
+            if comps.len() > 1 {
+                comps.iter().map(|c| one(c)).collect::<Vec<_>>().join(",")
+            } else {
+                one(part)
+            }
+        })
+        .collect();
+    parts.join(" | ")
+}
+
 /// One `InlineSetting` value. `None` = unparsable (stops reading further settings).
 fn parse_setting(s: &str, res: &Resources) -> Option<Vec<Setting>> {
     let s = s.trim();
@@ -469,6 +518,7 @@ impl MeterImpl for StringMeter {
             if setting.trim().is_empty() {
                 break;
             }
+            let setting = expand_formulas(&setting, &|f| opt.parser.parse_formula(f, opt.sv));
             let pattern = opt.string(&format!("InlinePattern{sfx}"), ".*");
             self.inline.push(Inline { setting, pattern: if pattern.is_empty() { ".*".into() } else { pattern } });
         }
@@ -521,5 +571,25 @@ impl MeterImpl for StringMeter {
 
     fn take_log(&mut self) -> Vec<String> {
         std::mem::take(&mut self.log)
+    }
+}
+
+#[cfg(test)]
+mod inline_formula_tests {
+    use super::expand_formulas;
+
+    fn ev(f: &str) -> Option<f64> {
+        crate::formula::evaluate(&f[1..f.len() - 1], &|_| None).ok()
+    }
+
+    #[test]
+    fn size_and_colour_formulas_become_numbers() {
+        assert_eq!(expand_formulas("Size | (68*2)", &ev), "Size | 136");
+        assert_eq!(expand_formulas("Size | (3/2)", &ev), "Size | 1.5");
+        assert_eq!(expand_formulas("Color | 10,(100+20),(2*3),255", &ev), "Color | 10,120,6,255");
+        assert_eq!(expand_formulas("Shadow | (1+1) | 2 | 3 | 0,0,0,(max(1,2))", &ev), "Shadow | 2 | 2 | 3 | 0,0,0,2");
+        assert_eq!(expand_formulas("Face | Arial", &ev), "Face | Arial");
+        // Unparsable formulas stay as they are.
+        assert_eq!(expand_formulas("Size | (1+)", &ev), "Size | (1+)");
     }
 }

@@ -398,3 +398,16 @@ fn calc_formula_over_time_measures_with_format() {
     assert!(!s.log_messages().iter().any(|m| m.contains("Calc:")), "{:?}", s.log_messages());
     assert_eq!(s.measure_value("B"), Some(10.0));
 }
+
+#[test]
+fn time_format_hash_flags_survive_variable_substitution() {
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        "T4",
+        "[Variables]\nI=BAD\n[H]\nMeasure=Time\nFormat=%#I:%M %p, %#d\n[Mt]\nMeter=String\nMeasureName=H\nText=%1\n",
+    );
+    s.tick();
+    let t = s.meter_text("Mt").unwrap();
+    assert!(!t.contains("BAD") && t.contains(':') && !t.starts_with('0') && t.contains(", "), "{t}");
+    assert!(t.contains('M'), "{t}"); // AM/PM
+}
