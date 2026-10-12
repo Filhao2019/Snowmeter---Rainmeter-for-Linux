@@ -420,3 +420,16 @@ fn time_stamp_format_literal_t_and_trailing_offset() {
     // get_time stops at the end of the format; the weather.com offset is ignored.
     assert_eq!(parse_timestamp("2026-10-12T07:30:00-0400", "%Y-%m-%dT%H:%M:%S"), a);
 }
+
+#[test]
+fn meter_size_is_readable_by_later_sections_at_load() {
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        "T5",
+        "[A]\nMeter=Image\nSolidColor=0,0,0,1\nW=(2*320)\nH=45\n\
+         [B]\nMeter=String\nText=x\nX=([A:W]/2)\nY=([A:H]-5)\n",
+    );
+    s.tick();
+    let b = s.meter_base("B").unwrap();
+    assert_eq!((b.x_value, b.y_value), (320, 40));
+}
