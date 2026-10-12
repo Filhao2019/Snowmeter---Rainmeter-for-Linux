@@ -403,6 +403,16 @@ impl ConfigParser {
             .collect()
     }
 
+    /// Raw `(UPPERCASE key, value)` pairs of a section (unordered). For tools
+    /// such as the compatibility checker that need to see every option.
+    pub fn section_entries(&self, section: &str) -> Vec<(String, String)> {
+        let u = up(section);
+        let mut v: Vec<(String, String)> =
+            self.values.iter().filter(|((s, _), _)| *s == u).map(|((_, k), val)| (k.clone(), val.clone())).collect();
+        v.sort();
+        v
+    }
+
     pub fn has_key(&self, section: &str, key: &str) -> bool {
         self.raw(section, key).is_some()
     }

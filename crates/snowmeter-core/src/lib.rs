@@ -14,6 +14,8 @@ pub mod timefmt;
 pub mod measures;
 pub mod meters;
 pub mod render;
+pub mod registry;
+pub mod settings;
 pub mod skin;
 
 pub use skin::{render_skin_png, AppRequest, MouseButton, MouseEvent, Skin};

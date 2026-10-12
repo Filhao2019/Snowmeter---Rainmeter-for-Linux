@@ -274,6 +274,13 @@ impl IniFile {
         }
     }
 
+    /// Remove every entry of `[name]` but keep the header.
+    pub fn clear_section(&mut self, name: &str) {
+        for s in self.sections.iter_mut().filter(|s| s.name.eq_ignore_ascii_case(name)) {
+            s.entries.clear();
+        }
+    }
+
     pub fn remove_section(&mut self, name: &str) {
         self.sections.retain(|s| !s.name.eq_ignore_ascii_case(name));
     }
