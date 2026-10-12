@@ -67,6 +67,8 @@ fn all_kinds() -> Vec<(ActionKind, String)> {
 #[derive(Clone, Debug, Default)]
 pub struct MouseActions {
     actions: Vec<(ActionKind, String)>,
+    /// `!DisableMouseAction`: actions stay defined but are ignored.
+    pub disabled: bool,
 }
 
 impl MouseActions {
@@ -78,15 +80,23 @@ impl MouseActions {
                 (!v.trim().is_empty()).then_some((k, v))
             })
             .collect();
-        MouseActions { actions }
+        MouseActions { actions, disabled: false }
     }
 
     pub fn get(&self, kind: ActionKind) -> Option<&str> {
+        if self.disabled {
+            return None;
+        }
         self.actions.iter().find(|(k, _)| *k == kind).map(|(_, v)| v.as_str())
     }
 
+    /// `!ClearMouseAction`: forget every action.
+    pub fn clear(&mut self) {
+        self.actions.clear();
+    }
+
     pub fn has_any(&self) -> bool {
-        !self.actions.is_empty()
+        !self.disabled && !self.actions.is_empty()
     }
 
     pub fn has_over_or_leave(&self) -> bool {
@@ -144,6 +154,17 @@ impl Skin {
         (w, h, out)
     }
 
+    /// Hit test of meter `i`; a contained meter also needs to hit its container.
+    fn meter_hit(&self, i: usize, x: f64, y: f64) -> bool {
+        let m = &self.meters[i];
+        if let Some(c) = m.base.container_idx {
+            if !self.meters[c].hit_test(x, y) {
+                return false;
+            }
+        }
+        m.hit_test(x, y)
+    }
+
     /// Topmost meter (reverse order, visible) with an enabled action of
     /// `kind` whose rectangle contains the point.
     fn find_target(&self, kind: ActionKind, x: f64, y: f64) -> Option<Target> {
@@ -152,7 +173,7 @@ impl Skin {
             if m.base.hidden || m.base.mouse.get(kind).is_none() {
                 continue;
             }
-            if m.hit_test(x, y) {
+            if self.meter_hit(i, x, y) {
                 return Some(Target::Meter(i));
             }
         }
@@ -251,7 +272,7 @@ impl Skin {
                 continue;
             }
             let m = &self.meters[i];
-            let still = pos.map(|(x, y)| !m.base.hidden && m.hit_test(x, y)).unwrap_or(false);
+            let still = pos.map(|(x, y)| !m.base.hidden && self.meter_hit(i, x, y)).unwrap_or(false);
             if !still {
                 self.over[i] = false;
                 if m.base.mouse.get(ActionKind::Leave).is_some() {
@@ -275,7 +296,7 @@ impl Skin {
         }
         for i in (0..self.meters.len()).rev() {
             let m = &self.meters[i];
-            if self.over[i] || m.base.hidden || !m.base.mouse.has_over_or_leave() || !m.hit_test(x, y) {
+            if self.over[i] || m.base.hidden || !m.base.mouse.has_over_or_leave() || !self.meter_hit(i, x, y) {
                 continue;
             }
             self.over[i] = true;

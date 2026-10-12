@@ -16,6 +16,7 @@ use crate::render::image::{draw_image, process, to_surface, DrawParams};
 use crate::render::Resources;
 use options::SkinOptions;
 use std::cell::{Ref, RefCell};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -492,14 +493,36 @@ impl Skin {
 
     /// Relative positioning (`r`/`R`) in file order, then the drawn rects.
     pub(crate) fn layout(&mut self) {
+        use meters::base::Rel;
+        // Resolve containers: an existing, other, non-contained meter.
+        let names: Vec<String> = self.meters.iter().map(|m| m.base.name.clone()).collect();
+        let containers: Vec<Option<usize>> = self
+            .meters
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                let c = m.base.container.as_str();
+                if c.is_empty() {
+                    return None;
+                }
+                names.iter().position(|n| n.eq_ignore_ascii_case(c)).filter(|&j| j != i && self.meters[j].base.container.trim().is_empty())
+            })
+            .collect();
+        for (m, c) in self.meters.iter_mut().zip(&containers) {
+            m.base.container_idx = *c;
+        }
+        let pick = |rel: Rel, value: i32, p: Option<(f64, f64)>, pw: f64| match (rel, p) {
+            (Rel::TopLeft, Some((px, _))) => px + value as f64,
+            (Rel::BottomRight, Some((px, _))) => px + pw + value as f64,
+            _ => value as f64,
+        };
+        // Pass 1: the outer chain (contained meters are skipped).
         let mut prev: Option<(f64, f64, f64, f64)> = None;
-        for m in &mut self.meters {
+        for (i, m) in self.meters.iter_mut().enumerate() {
+            if containers[i].is_some() {
+                continue;
+            }
             let b = &mut m.base;
-            let pick = |rel: meters::base::Rel, value: i32, p: Option<(f64, f64)>, pw: f64| match (rel, p) {
-                (meters::base::Rel::TopLeft, Some((px, _))) => px + value as f64,
-                (meters::base::Rel::BottomRight, Some((px, _))) => px + pw + value as f64,
-                _ => value as f64,
-            };
             let px = prev.map(|(x, y, _, _)| (x, y));
             b.x = pick(b.x_rel, b.x_value, px, prev.map(|p| p.2).unwrap_or(0.0));
             let py = prev.map(|(_, y, _, _)| (y, 0.0));
@@ -507,6 +530,33 @@ impl Skin {
             m.update_rect();
             let b = &m.base;
             prev = Some((b.x, b.y, b.gw(), b.gh()));
+        }
+        // Pass 2: contained meters, relative to their container / previous sibling.
+        let mut chain: HashMap<usize, (f64, f64, f64, f64)> = HashMap::new();
+        for i in 0..self.meters.len() {
+            let Some(c) = containers[i] else { continue };
+            let (cx, cy) = (self.meters[c].base.x, self.meters[c].base.y);
+            let first = !chain.contains_key(&c);
+            let p = chain.get(&c).copied();
+            let m = &mut self.meters[i];
+            let b = &mut m.base;
+            let (xr, yr) = if first { (Rel::TopLeft, Rel::TopLeft) } else { (b.x_rel, b.y_rel) };
+            let (px, py) = match p {
+                Some((x, y, _, _)) => ((x, y), (y, 0.0)),
+                None => ((cx, cy), (cy, 0.0)),
+            };
+            let (pw, ph) = p.map(|p| (p.2, p.3)).unwrap_or((0.0, 0.0));
+            b.x = match xr {
+                Rel::Abs => cx + b.x_value as f64,
+                _ => pick(xr, b.x_value, Some(px), pw),
+            };
+            b.y = match yr {
+                Rel::Abs => cy + b.y_value as f64,
+                _ => pick(yr, b.y_value, Some(py), ph),
+            };
+            m.update_rect();
+            let b = &m.base;
+            chain.insert(c, (b.x, b.y, b.gw(), b.gh()));
         }
         self.geom = self
             .meters
@@ -520,7 +570,7 @@ impl Skin {
         let o = &self.options;
         let m = o.background_margins;
         let (mut w, mut h) = (m[0] as f64, m[1] as f64);
-        for me in &self.meters {
+        for me in self.meters.iter().filter(|m| m.base.container_idx.is_none()) {
             w = w.max(me.base.rect_x + me.base.gw());
             h = h.max(me.base.rect_y + me.base.gh());
         }
@@ -569,9 +619,56 @@ impl Skin {
             (4, Some(bg)) => draw_image(cr, bg, 0.0, 0.0, w as f64, h as f64, &DrawParams { tile: true, ..Default::default() }),
             _ => {}
         }
-        for m in &self.meters {
-            m.draw(cr, &self.res);
+        for (i, m) in self.meters.iter().enumerate() {
+            if m.base.container_idx.is_some() {
+                continue; // drawn through its container
+            }
+            let children: Vec<&Meter> =
+                self.meters.iter().filter(|c| c.base.container_idx == Some(i)).collect();
+            if children.is_empty() {
+                m.draw(cr, &self.res);
+            } else {
+                self.draw_container(cr, m, &children);
+            }
         }
+    }
+
+    /// Container: contained meters are drawn into a texture the size of the
+    /// container, multiplied by the container's own drawn alpha, then composited.
+    /// The container itself is only the mask (meters.md 1.10).
+    fn draw_container(&self, cr: &cairo::Context, container: &Meter, children: &[&Meter]) {
+        use cairo::{Format, ImageSurface, Operator};
+        let b = &container.base;
+        if b.hidden {
+            return;
+        }
+        let (w, h) = (b.w.ceil() as i32, b.h.ceil() as i32);
+        if w <= 0 || h <= 0 || w > MAX_SKIN_SIDE || h > MAX_SKIN_SIDE {
+            return;
+        }
+        let (Ok(content), Ok(mask)) = (ImageSurface::create(Format::ARgb32, w, h), ImageSurface::create(Format::ARgb32, w, h)) else {
+            return;
+        };
+        if let Ok(c) = cairo::Context::new(&content) {
+            c.translate(-b.rect_x, -b.rect_y);
+            for ch in children {
+                ch.draw(&c, &self.res);
+            }
+        }
+        if let Ok(c) = cairo::Context::new(&mask) {
+            c.translate(-b.rect_x, -b.rect_y);
+            container.draw(&c, &self.res);
+        }
+        if let Ok(c) = cairo::Context::new(&content) {
+            c.set_operator(Operator::DestIn);
+            let _ = c.set_source_surface(&mask, 0.0, 0.0);
+            let _ = c.paint();
+        }
+        let _ = cr.save();
+        let _ = cr.set_source_surface(&content, b.rect_x, b.rect_y);
+        cr.rectangle(b.rect_x, b.rect_y, w as f64, h as f64);
+        let _ = cr.fill();
+        let _ = cr.restore();
     }
 
     /// Render a fresh ARGB32 frame of `size()`.

@@ -482,7 +482,9 @@ impl MeasureImpl for WebParser {
     }
 
     fn string_value(&self) -> Option<String> {
-        self.has_string.then(|| self.result.clone())
+        // WebParser always has a string value (empty until the first result), so
+        // `Substitute="":"N/A"` applies instead of the numeric fallback "0".
+        Some(self.result.clone())
     }
 
     fn command(&mut self, args: &str) {

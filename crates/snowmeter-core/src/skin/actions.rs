@@ -49,6 +49,8 @@ fn routable_argc(name: &str) -> Option<usize> {
         | "togglemeasuregroup" | "pausemeasure" | "unpausemeasure" | "togglepausemeasure" | "pausemeasuregroup"
         | "unpausemeasuregroup" | "togglepausemeasuregroup" => 1,
         "updatemeasure" | "updatemeter" | "updatemeasuregroup" | "updatemetergroup" => 1,
+        "enablemouseaction" | "disablemouseaction" | "togglemouseaction" | "clearmouseaction" | "enablemouseactiongroup"
+        | "disablemouseactiongroup" | "togglemouseactiongroup" | "clearmouseactiongroup" => 1,
         "setvariable" | "commandmeasure" | "commandmeasuregroup" => 2,
         "setoption" | "setoptiongroup" | "movemeter" => 3,
         _ => return None,
@@ -424,6 +426,24 @@ impl Skin {
                 self.invalidate();
             }
             "writekeyvalue" if args.len() >= 3 => self.write_key_value(&args),
+            "enablemouseaction" | "disablemouseaction" | "togglemouseaction" | "clearmouseaction" | "enablemouseactiongroup"
+            | "disablemouseactiongroup" | "togglemouseactiongroup" | "clearmouseactiongroup" => {
+                let group = name.ends_with("group");
+                let op = name.trim_end_matches("group").trim_end_matches("mouseaction");
+                let targets = self.meter_targets(arg(0), group);
+                if targets.is_empty() {
+                    self.note(format!("!{name}: [{}] not found", arg(0)));
+                }
+                for i in targets {
+                    let m = &mut self.meters[i].base.mouse;
+                    match op {
+                        "enable" => m.disabled = false,
+                        "disable" => m.disabled = true,
+                        "toggle" => m.disabled = !m.disabled,
+                        _ => m.clear(),
+                    }
+                }
+            }
             "showmeter" | "hidemeter" | "togglemeter" | "showmetergroup" | "hidemetergroup" | "togglemetergroup" => {
                 let hide = match name.trim_end_matches("group") {
                     "showmeter" => Some(false),

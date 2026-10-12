@@ -97,6 +97,10 @@ pub struct MeterBase {
     /// Stored for the front end; not shown yet.
     pub tooltip_text: String,
     pub tooltip_title: String,
+    /// `Container=` meter name (empty = none).
+    pub container: String,
+    /// Index of the container meter, resolved by `Skin::layout`.
+    pub container_idx: Option<usize>,
 }
 
 /// Parse an `X`/`Y` option: optional trailing `r`/`R`, then `ParseInt`
@@ -166,6 +170,7 @@ impl MeterBase {
         self.matrix = parse_matrix(opt);
         self.tooltip_text = opt.string("ToolTipText", "");
         self.tooltip_title = opt.string("ToolTipTitle", "");
+        self.container = opt.string("Container", "").trim().to_string();
         self.measure_names = read_measure_names(opt);
         if self.type_name.eq_ignore_ascii_case("Histogram") && self.measure_names.len() == 1 {
             let legacy = opt.string("SecondaryMeasureName", "");

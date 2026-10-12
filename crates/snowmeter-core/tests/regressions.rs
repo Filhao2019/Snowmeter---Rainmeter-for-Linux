@@ -210,3 +210,67 @@ fn minors_extreme_values_do_not_panic() {
     s.tick();
     let _ = s.render_to_surface();
 }
+
+/// illustro Network: the IP line is a WebParser measure with `Substitute="":"N/A"`;
+/// before the first result it must show N/A, not the numeric fallback "0".
+#[test]
+fn webparser_empty_result_uses_substitute() {
+    let fx = Fx::new();
+    let s = fx.skin(
+        "Net",
+        "[ip]\nMeasure=WebParser\nURL=http://127.0.0.1:9/\nUpdateRate=14400\nRegExp=(?s)^(.*)$\nStringIndex=1\nSubstitute=\"\":\"N/A\"\n\
+         [S]\nMeter=String\nMeasureName=ip\nText=%1\n",
+    );
+    assert_eq!(s.meter_text("S").as_deref(), Some("N/A"));
+}
+
+#[test]
+fn mouse_action_bangs() {
+    use snowmeter_core::skin::{MouseButton, MouseEvent};
+    let fx = Fx::new();
+    let mut s = fx.skin(
+        "Mouse",
+        "[A]\nMeter=String\nText=a\nW=50\nH=20\nSolidColor=0,0,0,255\nGroup=G\nLeftMouseUpAction=[!SetVariable Hit yes]\n",
+    );
+    let click = |s: &mut Skin| {
+        s.mouse(MouseEvent::Down { x: 5.0, y: 5.0, button: MouseButton::Left });
+        s.mouse(MouseEvent::Up { x: 5.0, y: 5.0, button: MouseButton::Left });
+    };
+    s.execute("[!DisableMouseAction A]");
+    click(&mut s);
+    assert_eq!(s.parser().get_variable("Hit"), None);
+    s.execute("[!EnableMouseActionGroup G]");
+    click(&mut s);
+    assert_eq!(s.parser().get_variable("Hit").as_deref(), Some("yes"));
+    s.execute("[!SetVariable Hit no][!ClearMouseAction A]");
+    click(&mut s);
+    assert_eq!(s.parser().get_variable("Hit").as_deref(), Some("no"));
+}
+
+/// Container: contained meters are offset from the container, clipped to its
+/// drawn alpha, excluded from window sizing and from the outer relative chain.
+#[test]
+fn container_clips_and_positions() {
+    let fx = Fx::new();
+    let ini = "[K]\nMeter=Image\nX=10\nY=10\nW=20\nH=20\nSolidColor=0,0,0,255\n\
+        [I1]\nMeter=Image\nContainer=K\nX=5\nY=5\nW=100\nH=100\nSolidColor=255,0,0,255\n\
+        [I2]\nMeter=Image\nContainer=K\nX=0r\nY=0r\nW=10\nH=10\nSolidColor=0,255,0,255\n\
+        [N]\nMeter=Image\nX=0R\nY=40\nW=5\nH=5\nSolidColor=0,0,255,255\n";
+    let s = fx.skin("Cont", ini);
+    let b = |n: &str| {
+        let m = s.meter_base(n).unwrap();
+        (m.x, m.y)
+    };
+    assert_eq!(b("I1"), (15.0, 15.0));
+    assert_eq!(b("I2"), (15.0, 15.0));
+    assert_eq!(b("N"), (30.0, 40.0), "outer chain skips contained meters");
+    assert_eq!(s.size(), (35, 45), "contained meters do not size the window");
+    let png = fx._tmp.path().join("c.png");
+    s.render_to_surface().unwrap().write_to_png(&mut std::fs::File::create(&png).unwrap()).unwrap();
+    let img = image::open(&png).unwrap().to_rgba8();
+    assert_eq!(px(&img, 20, 20)[3], 255);
+    assert_eq!(px(&img, 16, 16), [0, 255, 0, 255], "I2 drawn over I1 inside the container");
+    assert_eq!(px(&img, 25, 25), [255, 0, 0, 255], "I1 inside the container");
+    assert_eq!(px(&img, 31, 15)[3], 0, "I1 clipped outside the container rect");
+    assert_eq!(px(&img, 12, 12)[3], 0, "container itself is not drawn, only masks");
+}
