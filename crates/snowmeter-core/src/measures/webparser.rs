@@ -428,6 +428,22 @@ fn confine(base: &std::path::Path, name: &str) -> PathBuf {
     out
 }
 
+/// Percent-encode the bytes of `url` that are not valid in a URI (spaces,
+/// quotes, `<>\\^`{|}`, control and non-ASCII bytes), as WinInet does, and leave
+/// existing `%XX` escapes and reserved delimiters alone.
+pub fn escape_url(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for b in url.bytes() {
+        let bad = b <= 0x20 || b >= 0x7F || matches!(b, b'"' | b'<' | b'>' | b'\\' | b'^' | b'`' | b'{' | b'|' | b'}');
+        if bad {
+            out.push_str(&format!("%{b:02X}"));
+        } else {
+            out.push(b as char);
+        }
+    }
+    out
+}
+
 fn fetch(url: &str, headers: &[String], ua: &str) -> Result<Vec<u8>, String> {
     if let Some(p) = url.strip_prefix("file://") {
         let path = p.strip_prefix('/').map(|r| format!("/{r}")).unwrap_or_else(|| p.to_string());
@@ -441,7 +457,8 @@ fn fetch(url: &str, headers: &[String], ua: &str) -> Result<Vec<u8>, String> {
         .http_status_as_error(false)
         .build()
         .into();
-    let mut req = agent.get(url);
+    let url = escape_url(url);
+    let mut req = agent.get(&url);
     for h in headers {
         if let Some((k, v)) = h.split_once(':') {
             req = req.header(k.trim(), v.trim());
@@ -551,6 +568,30 @@ impl MeasureImpl for WebParser {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn urls_with_unsafe_characters_are_percent_encoded() {
+        assert_eq!(super::escape_url("http://h/a b?q=\"x y\"&r=1%202#f"), "http://h/a%20b?q=%22x%20y%22&r=1%202#f");
+        assert_eq!(super::escape_url("http://h/\u{e9}|{}"), "http://h/%C3%A9%7C%7B%7D");
+        assert_eq!(super::escape_url("http://h/p?a=b,c;d:e@f/g"), "http://h/p?a=b,c;d:e@f/g");
+    }
+
+    #[test]
+    fn request_with_spaces_and_quotes_reaches_the_server() {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let h = std::thread::spawn(move || {
+            let (mut c, _) = l.accept().unwrap();
+            let mut buf = [0u8; 2048];
+            let n = c.read(&mut buf).unwrap();
+            c.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok").unwrap();
+            String::from_utf8_lossy(&buf[..n]).lines().next().unwrap().to_string()
+        });
+        let body = super::fetch(&format!("http://127.0.0.1:{port}/a b?q=\"x\" y"), &[], "t").unwrap();
+        assert_eq!(body, b"ok");
+        assert_eq!(h.join().unwrap(), "GET /a%20b?q=%22x%22%20y HTTP/1.1");
+    }
+
     #[test]
     fn file_url_is_bounded_and_regular_only() {
         assert!(super::fetch("file:///dev/zero", &[], "t").is_err());
